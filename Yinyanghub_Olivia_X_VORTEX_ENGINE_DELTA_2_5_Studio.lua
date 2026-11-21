@@ -8,7 +8,7 @@
 -- 3) AFK แสดงสถานะ/แจ้งเตือนการไม่ใช้งาน ไม่จำลองอินพุตเพื่อหลบระบบ AFK
 -- 4) Code tab แสดง/ตรวจข้อความเบื้องต้น ไม่รันโค้ดที่ผู้ใช้ป้อน
 --
--- สิ่งที่แก้/เพิ่มใน v3.0 ดูท้ายไฟล์
+-- ปุ่ม RightShift = ซ่อน/แสดงหน้าต่าง | ฟังก์ชันตัวละคร/ฟาร์ม/ดาเมจ/ESP ใช้ได้เฉพาะ Roblox Studio
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -126,6 +126,8 @@ local Config = {
 	FarmTag = "YYH_Farm",
 
 	AfkSeconds = 60,
+	Language = "TH", -- "TH" หรือ "EN" (สลับได้ที่ Settings)
+	DamageUnlocked = false,
 
 	-- Damage (ทดสอบดาเมจกับศัตรูในเกมของคุณ ใน Studio)
 	DamageEnabled = false,
@@ -137,6 +139,90 @@ local Config = {
 }
 
 local DAMAGE_MAX = 4.41004e21 -- 4,410,040,000,000,000,000,000 = 4,410.04Qi
+
+-- ภาษา / Language: TR = ไทย -> English (ใช้ผ่าน L() และปุ่ม LANGUAGE ในหน้า Settings)
+local TR = {
+	["-- เลือกสคริปต์จากแท็บ Games เพื่อดูโค้ด"] = "-- Select a script from the Games tab to view its code",
+	["วงเล็บ '%s' ไม่ตรงคู่ที่บรรทัด %d"] = "Bracket '%s' has no match at line %d",
+	["วงเล็บ '%s' ที่บรรทัด %d ยังไม่ถูกปิด"] = "Bracket '%s' at line %d is not closed",
+	["Lines: %d | Chars: %d | วงเล็บ: %s"] = "Lines: %d | Chars: %d | Brackets: %s",
+	["\n⚠ พบคำสั่งที่โหลด/รันโค้ดภายนอก: "] = "\n⚠ Found external load/run commands: ",
+	[" (ดูเท่านั้น ไม่รัน)"] = " (view only, not executed)",
+	["เลือกข้อความทั้งหมดแล้ว (Ctrl+C เพื่อคัดลอก)"] = "All text selected (Ctrl+C to copy)",
+	["🔍 ค้นหาสคริปต์ทุกหมวด..."] = "🔍 Search all scripts...",
+	["%s\n(%d สคริปต์)"] = "%s\n(%d scripts)",
+	[" — VIEW ONLY (ไม่รันโค้ด)"] = " — VIEW ONLY (code is not run)",
+	["ไม่พบสคริปต์ที่ค้นหา"] = "No scripts found",
+	["ยังไม่มีรายการโปรด\nกด ☆ ที่การ์ดสคริปต์เพื่อบันทึก"] = "No favorites yet\nTap ☆ on a script card to save it",
+	["บันทึกลงรายการโปรดแล้ว"] = "Added to favorites",
+	["นำออกจากรายการโปรดแล้ว"] = "Removed from favorites",
+	["• Debug overlay ใช้ได้เฉพาะ Studio หรือเกมที่คุณเป็นเจ้าของ (แสดงชื่อ ระยะ เลือด)\n• AFK monitor วัดเวลาที่ไม่มีการกดเล่น แจ้งเตือนซ้ำทุกครบเวลาที่ตั้ง\n• ไม่จำลองการกดปุ่มเพื่อหลบระบบ AFK ของ Roblox"] = "• Debug overlay works only in Studio or a game you own (shows name, distance, health)\n• AFK monitor measures time without input and repeats the alert every set interval\n• Does not simulate key presses to dodge Roblox's AFK system",
+	["Debug overlay ถูกปิด: ฟังก์ชันนี้จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ"] = "Debug overlay disabled: this feature is limited to Roblox Studio or a game you own",
+	["ใช้ได้เฉพาะใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ"] = "Only available in Roblox Studio or your own game",
+	["%d ชม. %d นาที"] = "%d h %d min",
+	["%d นาที %d วินาที"] = "%d min %d s",
+	["%d วินาที"] = "%d s",
+	["ไม่มีการใช้งาน: %s (แจ้งเตือนที่ %s)\nนานที่สุด: %s | แจ้งเตือนแล้ว: %d ครั้ง\nRoblox Idled: %d ครั้ง | ตรวจมาแล้ว: %s"] = "Idle: %s (alert at %s)\nLongest: %s | Alerts: %d\nRoblox Idled: %d | Monitored: %s",
+	["⚠ AFK: ไม่มีการใช้งาน "] = "⚠ AFK: idle for ",
+	["บันทึกการตั้งค่าแล้ว"] = "Settings saved",
+	["รีเซ็ตเป็นค่าเริ่มต้นแล้ว (กด SAVE เพื่อบันทึก)"] = "Reset to defaults (press SAVE to keep)",
+	["LINKS (แตะเพื่อเลือกข้อความ แล้วกด Ctrl+C)"] = "LINKS (tap to select, then Ctrl+C)",
+	["แตะ Watermark หรือกด "] = "Tap the watermark or press ",
+	[" = ซ่อน/แสดงหน้าต่าง"] = " = show/hide window",
+	["ฟังก์ชันตัวละครใช้ได้เฉพาะใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ"] = "Character features are only available in Roblox Studio or your own game",
+	["ฟังก์ชันตัวละครถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ (ใช้ทดสอบตัวละครในเกมของคุณ)"] = "Character features disabled: limited to Roblox Studio or a game you own (for testing your character in your own game)",
+	["• SPEED/JUMP ปรับค่าตามสไลด์ และคืนค่าเดิมเมื่อปิด\n• FLY: WASD/จอยสติ๊กเคลื่อนที่ตามกล้อง, Space = ขึ้น, Shift = ลง\n• AUTO HEAL เพิ่มเลือดต่อเนื่อง / INFINITE HEALTH เลือดไม่จำกัด (ใน Play Solo; โหมดหลายผู้เล่นเซิร์ฟเวอร์ยังคุมเลือดจริง)"] = "• SPEED/JUMP follow the sliders and restore the original value when turned off\n• FLY: WASD/joystick moves relative to the camera, Space = up, Shift = down\n• AUTO HEAL restores health continuously / INFINITE HEALTH = unlimited health (Play Solo; on multiplayer servers the server still controls real health)",
+	["\n🚀 COMBO: เปิด Speed + Jump + Infinite Jump — กดกระโดดเพื่อพุ่งไปข้างหน้า"] = "\n🚀 COMBO: Speed + Jump + Infinite Jump on — press jump to dash forward",
+	["ITEM TAG / ชื่อ Folder ใน Workspace"] = "ITEM TAG / Folder name in Workspace",
+	["• ใช้กับแมพของคุณ: ติด Tag (CollectionService) ให้ไอเทม หรือวางไว้ใน Folder ชื่อเดียวกับช่อง TAG\n• FLY = บินไปหาไอเทม / WARP = วาร์ปไปทับ (เลือกได้อย่างเดียว ไม่ทำพร้อมกัน)"] = "• For your own map: tag items with CollectionService or put them in a Folder with the same name as the TAG field\n• FLY = fly to the items / WARP = teleport onto them (pick one, not both)",
+	["เช่น 4,410.04Qi"] = "e.g. 4,410.04Qi",
+	["DAMAGE (ทดสอบกับศัตรูใน Studio) — สูงสุด "] = "DAMAGE (test on enemies in your game) — max ",
+	["รูปแบบตัวเลขไม่ถูกต้อง"] = "Invalid number format",
+	["ENEMY TAG / ชื่อ Folder ของศัตรู (ต้องมี Humanoid)"] = "ENEMY TAG / enemy Folder name (needs Humanoid)",
+	["Damage ถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ"] = "Damage disabled: limited to Roblox Studio or a game you own",
+	["DAMAGE: ON | %s ต่อครั้ง (ทุก %.1f วินาที, ระยะ %d studs)\nศัตรูในระยะ: %d | โจมตีแล้ว: %d ครั้ง"] = "DAMAGE: ON | %s per hit (every %.1f s, range %d studs)\nEnemies in range: %d | Hits: %d",
+	["Auto Farm ถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ (ใช้ทดสอบแมพของคุณ)"] = "Auto Farm disabled: limited to Roblox Studio or a game you own (for testing your map)",
+	["%.1f ครั้ง/วินาที"] = "%.1f per second",
+	["FARM: %s | %s | %s\nพบไอเทม: %d | ไปถึงแล้ว: %d\nเป้าหมาย: %s"] = "FARM: %s | %s | %s\nItems found: %d | Visited: %d\nTarget: %s",
+	["โหมดฟาร์ม: "] = "Farm mode: ",
+	["ขโมยไข่ (Steal An Egg)"] = "Steal An Egg",
+	["คู่แข่ง (Rivals)"] = "Rivals",
+	["บล็อกฟุต (Blox Fruits)"] = "Blox Fruits",
+	["ให้อาหารสัตว์ (Feed Pet)"] = "Feed Pet",
+	["★ รายการโปรด"] = "★ Favorites",
+	["เทมเพลตสำหรับพัฒนาในเกมของตนเอง"] = "Template for developing in your own game",
+	["ADMIN CODE (ปลดล็อก Damage เท่านั้น)"] = "ADMIN CODE (unlocks Damage only)",
+	["ใส่โค้ดจากแอดมิน"] = "Enter the admin code",
+	["🔒 Damage ถูกล็อก — ขอโค้ดจากแอดมินผู้จัดทำ"] = "🔒 Damage is locked — ask the admin for the code",
+	["🔓 Damage ปลดล็อกแล้ว"] = "🔓 Damage unlocked",
+	["ปลดล็อก Damage แล้ว"] = "Damage unlocked",
+	["โค้ดไม่ถูกต้อง"] = "Invalid code",
+	["ลองใหม่อีกครั้งใน %d วินาที"] = "Try again in %d s",
+	["Damage ถูกล็อก: ใส่โค้ดแอดมินที่ Settings (ช่องสุดท้าย)"] = "Damage is locked: enter the admin code in Settings (last field)",
+	["DAMAGE: LOCKED — ใส่โค้ดแอดมินที่ Settings"] = "DAMAGE: LOCKED — enter the admin code in Settings",
+	["ฟังก์ชันตัวละคร/ฟาร์ม/ESP/Damage ใช้ได้เฉพาะ Studio หรือเกมที่คุณเป็นเจ้าของ"] = "Character/Farm/ESP/Damage only work in Studio or a game you own",
+}
+local REV = {}
+for thai, english in pairs(TR) do
+	REV[english] = thai
+end
+local function L(text)
+	if Config.Language == "EN" then
+		return TR[text] or text
+	end
+	return text
+end
+
+-- รหัสแอดมินปลดล็อก Damage (เก็บเป็นค่า hash ไม่ใช่ข้อความตรง ๆ)
+-- หมายเหตุ: เป็นการล็อกฝั่งไคลเอนต์ ป้องกันการใช้ผิดโดยไม่ตั้งใจ ไม่ใช่ระบบความปลอดภัยจริง
+local ADMIN_CODE_HASH = 404071526
+local function HashCode(text)
+	local hash = 5381
+	for index = 1, #text do
+		hash = (hash * 33 + string.byte(text, index)) % 4294967296
+	end
+	return hash
+end
 
 local Themes = {
 	{Name = "PURPLE", Color = Color3.fromRGB(48, 25, 110), Accent = Color3.fromRGB(37, 99, 235)},
@@ -163,6 +249,7 @@ local function SaveConfig()
 		LocalPlayer:SetAttribute("YYH_WmShape", Config.WatermarkShape)
 		LocalPlayer:SetAttribute("YYH_WmStroke", Config.WatermarkStroke)
 		LocalPlayer:SetAttribute("YYH_WmColor", WatermarkColorIndex)
+		LocalPlayer:SetAttribute("YYH_Lang", Config.Language)
 	end)
 end
 
@@ -171,6 +258,13 @@ local function LoadConfig()
 		local themeIndex = LocalPlayer:GetAttribute("YYH_Theme")
 		if type(themeIndex) == "number" and Themes[themeIndex] then
 			ThemeIndex = themeIndex
+		end
+		local language = LocalPlayer:GetAttribute("YYH_Lang")
+		if language == "TH" or language == "EN" then
+			Config.Language = language
+		end
+		if LocalPlayer:GetAttribute("YYH_DmgUnlocked") == ADMIN_CODE_HASH then
+			Config.DamageUnlocked = true
 		end
 		local colorIndex = LocalPlayer:GetAttribute("YYH_WmColor")
 		if type(colorIndex) == "number" and WatermarkColors[colorIndex] then
@@ -331,9 +425,10 @@ end
 
 -- ปุ่มสลับ ON/OFF ที่อ่านสถานะจาก getState() เสมอ
 local function MakeToggle(parent, label, size, position, getState)
-	local button = MakeButton(parent, label, size, position)
+	local button = MakeButton(parent, "", size, position)
 	Bind(button, "Text", function()
-		return label .. (getState() and " : ON" or " : OFF")
+		local name = type(label) == "function" and label() or label
+		return name .. (getState() and " : ON" or " : OFF")
 	end)
 	Bind(button, "BackgroundColor3", function()
 		return getState() and Config.AccentBlue or Config.ButtonWhite
@@ -542,6 +637,29 @@ do -- วางกึ่งกลางจอตอนเริ่ม
 	)
 end
 
+-- แตะ Watermark (ไม่ลาก) = ซ่อน/แสดงหน้าต่างหลัก
+do
+	local pressPosition
+	local function isPointer(input)
+		return input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+	end
+	Track(WatermarkFrame.InputBegan:Connect(function(input)
+		if isPointer(input) then
+			pressPosition = input.Position
+		end
+	end))
+	Track(WatermarkFrame.InputEnded:Connect(function(input)
+		if isPointer(input) and pressPosition then
+			local moved = (input.Position - pressPosition).Magnitude
+			pressPosition = nil
+			if moved < 8 then
+				MainFrame.Visible = not MainFrame.Visible
+			end
+		end
+	end))
+end
+
 local TopBar = New("Frame", {
 	Name = "TopBar",
 	Size = UDim2.new(1, 0, 0, 34),
@@ -675,6 +793,13 @@ local function CreateScrollPage(name, canvasHeight)
 		CanvasSize = UDim2.fromOffset(0, canvasHeight),
 		Visible = false
 	}, BodyHolder)
+	-- เว้นขอบให้เส้นขอบ (UIStroke) ไม่ถูกตัด และไม่ให้แถบเลื่อนทับปุ่ม
+	New("UIPadding", {
+		PaddingLeft = UDim.new(0, 3),
+		PaddingRight = UDim.new(0, 9),
+		PaddingTop = UDim.new(0, 3),
+		PaddingBottom = UDim.new(0, 6)
+	}, page)
 	Pages[name] = page
 	return page
 end
@@ -733,7 +858,7 @@ local CodeBox = New("TextBox", {
 	MultiLine = true,
 	ClearTextOnFocus = false,
 	ClipsDescendants = true,
-	PlaceholderText = "-- เลือกสคริปต์จากแท็บ Games เพื่อดูโค้ด",
+	PlaceholderText = L("-- เลือกสคริปต์จากแท็บ Games เพื่อดูโค้ด"),
 	Text = 'print("YIN YANG HUB")'
 }, CodePage)
 Corner(CodeBox, 6)
@@ -789,13 +914,13 @@ local function CheckBrackets(clean)
 		elseif pairsMap[char] then
 			local top = table.remove(stack)
 			if not top or top.char ~= pairsMap[char] then
-				return false, string.format("วงเล็บ '%s' ไม่ตรงคู่ที่บรรทัด %d", char, line)
+				return false, string.format(L("วงเล็บ '%s' ไม่ตรงคู่ที่บรรทัด %d"), char, line)
 			end
 		end
 	end
 	if #stack > 0 then
 		local top = stack[#stack]
-		return false, string.format("วงเล็บ '%s' ที่บรรทัด %d ยังไม่ถูกปิด", top.char, top.line)
+		return false, string.format(L("วงเล็บ '%s' ที่บรรทัด %d ยังไม่ถูกปิด"), top.char, top.line)
 	end
 	return true
 end
@@ -815,9 +940,9 @@ local function AnalyzeSource(source)
 		end
 	end
 
-	local text = string.format("Lines: %d | Chars: %d | วงเล็บ: %s", lines, #source, ok and "OK" or problem)
+	local text = string.format(L("Lines: %d | Chars: %d | วงเล็บ: %s"), lines, #source, ok and "OK" or problem)
 	if #found > 0 then
-		text ..= "\n⚠ พบคำสั่งที่โหลด/รันโค้ดภายนอก: " .. table.concat(found, ", ") .. " (ดูเท่านั้น ไม่รัน)"
+		text ..= L("\n⚠ พบคำสั่งที่โหลด/รันโค้ดภายนอก: ") .. table.concat(found, ", ") .. L(" (ดูเท่านั้น ไม่รัน)")
 	else
 		text ..= "\nTEXT LOADED - NOT EXECUTED"
 	end
@@ -832,7 +957,7 @@ Track(CodeSelect.MouseButton1Click:Connect(function()
 	CodeBox:CaptureFocus()
 	CodeBox.SelectionStart = 1
 	CodeBox.CursorPosition = #CodeBox.Text + 1
-	ShowToast("เลือกข้อความทั้งหมดแล้ว (Ctrl+C เพื่อคัดลอก)")
+	ShowToast(L("เลือกข้อความทั้งหมดแล้ว (Ctrl+C เพื่อคัดลอก)"))
 end))
 
 Track(CodeClear.MouseButton1Click:Connect(function()
@@ -870,7 +995,7 @@ local SearchBox = New("TextBox", {
 	Position = UDim2.fromOffset(153, 0),
 	BackgroundColor3 = Config.ButtonWhite,
 	TextColor3 = Config.TextDark,
-	PlaceholderText = "🔍 ค้นหาสคริปต์ทุกหมวด...",
+	PlaceholderText = L("🔍 ค้นหาสคริปต์ทุกหมวด..."),
 	Text = "",
 	ClearTextOnFocus = false,
 	Font = Enum.Font.Gotham,
@@ -924,12 +1049,12 @@ local function RebuildFavorites()
 end
 
 local function CategoryLabel(category)
-	return string.format("%s\n(%d สคริปต์)", category.Category, #category.Scripts)
+	return string.format(L("%s\n(%d สคริปต์)"), L(category.Category), #category.Scripts)
 end
 
 local function ShowScriptDetails(scriptData)
 	CodeBox.Text = scriptData.Code or ""
-	CodeStatus.Text = "Selected: " .. scriptData.Name .. " — VIEW ONLY (ไม่รันโค้ด)"
+	CodeStatus.Text = "Selected: " .. scriptData.Name .. L(" — VIEW ONLY (ไม่รันโค้ด)")
 	SwitchTab("Code")
 end
 
@@ -959,8 +1084,8 @@ RenderScripts = function()
 		New("TextLabel", {
 			Size = UDim2.new(1, -2, 0, 50),
 			BackgroundTransparency = 1,
-			Text = query ~= "" and "ไม่พบสคริปต์ที่ค้นหา"
-				or "ยังไม่มีรายการโปรด\nกด ☆ ที่การ์ดสคริปต์เพื่อบันทึก",
+			Text = query ~= "" and L("ไม่พบสคริปต์ที่ค้นหา")
+				or L("ยังไม่มีรายการโปรด\nกด ☆ ที่การ์ดสคริปต์เพื่อบันทึก"),
 			TextColor3 = Config.TextMuted,
 			Font = Enum.Font.Gotham,
 			TextSize = 11,
@@ -994,7 +1119,7 @@ RenderScripts = function()
 			Size = UDim2.new(1, -92, 0, 34),
 			Position = UDim2.fromOffset(8, 26),
 			BackgroundTransparency = 1,
-			Text = scriptData.Desc,
+			Text = L(scriptData.Desc),
 			TextColor3 = Config.TextMuted,
 			Font = Enum.Font.Gotham,
 			TextSize = 10,
@@ -1036,7 +1161,7 @@ RenderScripts = function()
 			Favorites[scriptData] = not Favorites[scriptData] or nil
 			RebuildFavorites()
 			CategoryButtons[FavoritesCategory].Text = CategoryLabel(FavoritesCategory)
-			ShowToast(Favorites[scriptData] and "บันทึกลงรายการโปรดแล้ว" or "นำออกจากรายการโปรดแล้ว")
+			ShowToast(Favorites[scriptData] and L("บันทึกลงรายการโปรดแล้ว") or L("นำออกจากรายการโปรดแล้ว"))
 			RenderScripts()
 		end)
 	end
@@ -1082,7 +1207,21 @@ end))
 -- 9. ESP-AFK PAGE
 ---------------------------------------------------------------------
 local EspAfkPage = CreatePage("ESP-AFK")
-local IsStudio = RunService:IsStudio()
+-- โหมดนักพัฒนา: Roblox Studio หรือเกมที่ผู้เล่นเป็นเจ้าของ (ทดสอบบนมือถือในเกมตัวเองได้)
+local function IsPlaceOwner()
+	local ok, result = pcall(function()
+		if game.CreatorId == 0 then
+			return false
+		end
+		if game.CreatorType == Enum.CreatorType.User then
+			return game.CreatorId == LocalPlayer.UserId
+		end
+		return LocalPlayer:GetRankInGroup(game.CreatorId) >= 255
+	end)
+	return ok and result == true
+end
+local IsOwnerGame = (not RunService:IsStudio()) and IsPlaceOwner()
+local IsStudio = RunService:IsStudio() or IsOwnerGame
 
 local EspToggle = MakeToggle(EspAfkPage, "Studio Debug Overlay", UDim2.new(1, 0, 0, 38), UDim2.fromOffset(0, 4), function()
 	return Config.EspEnabled
@@ -1131,7 +1270,7 @@ local EspInfo = New("TextLabel", {
 	Font = Enum.Font.Gotham,
 	TextSize = 10,
 	TextWrapped = true,
-	Text = "• Debug overlay ใช้ได้เฉพาะ Roblox Studio (แสดงชื่อ ระยะ เลือด)\n• AFK monitor วัดเวลาที่ไม่มีการกดเล่น แจ้งเตือนซ้ำทุกครบเวลาที่ตั้ง\n• ไม่จำลองการกดปุ่มเพื่อหลบระบบ AFK ของ Roblox"
+	Text = L("• Debug overlay ใช้ได้เฉพาะ Studio หรือเกมที่คุณเป็นเจ้าของ (แสดงชื่อ ระยะ เลือด)\n• AFK monitor วัดเวลาที่ไม่มีการกดเล่น แจ้งเตือนซ้ำทุกครบเวลาที่ตั้ง\n• ไม่จำลองการกดปุ่มเพื่อหลบระบบ AFK ของ Roblox")
 }, EspAfkPage)
 Bind(EspInfo, "BackgroundColor3", function()
 	return Config.AccentBlue
@@ -1235,8 +1374,8 @@ end
 
 Track(EspToggle.MouseButton1Click:Connect(function()
 	if not IsStudio then
-		EspInfo.Text = "Debug overlay ถูกปิด: ฟังก์ชันนี้จำกัดการใช้งานไว้ใน Roblox Studio"
-		ShowToast("ใช้ได้เฉพาะใน Roblox Studio")
+		EspInfo.Text = L("Debug overlay ถูกปิด: ฟังก์ชันนี้จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ")
+		ShowToast(L("ใช้ได้เฉพาะใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ"))
 		return
 	end
 	SetESP(not Config.EspEnabled)
@@ -1253,11 +1392,11 @@ local afkStartedAt = os.clock()
 local function FormatDuration(seconds)
 	seconds = math.floor(seconds)
 	if seconds >= 3600 then
-		return string.format("%d ชม. %d นาที", seconds // 3600, (seconds % 3600) // 60)
+		return string.format(L("%d ชม. %d นาที"), seconds // 3600, (seconds % 3600) // 60)
 	elseif seconds >= 60 then
-		return string.format("%d นาที %d วินาที", seconds // 60, seconds % 60)
+		return string.format(L("%d นาที %d วินาที"), seconds // 60, seconds % 60)
 	end
-	return string.format("%d วินาที", seconds)
+	return string.format(L("%d วินาที"), seconds)
 end
 
 local function MarkActive(input)
@@ -1305,7 +1444,7 @@ local function UpdateAfk()
 	AfkBarFill.Size = UDim2.fromScale(math.clamp(idle / threshold, 0, 1), 1)
 
 	AfkStatus.Text = string.format(
-		"ไม่มีการใช้งาน: %s (แจ้งเตือนที่ %s)\nนานที่สุด: %s | แจ้งเตือนแล้ว: %d ครั้ง\nRoblox Idled: %d ครั้ง | ตรวจมาแล้ว: %s",
+		L("ไม่มีการใช้งาน: %s (แจ้งเตือนที่ %s)\nนานที่สุด: %s | แจ้งเตือนแล้ว: %d ครั้ง\nRoblox Idled: %d ครั้ง | ตรวจมาแล้ว: %s"),
 		FormatDuration(idle), FormatDuration(threshold),
 		FormatDuration(math.max(afkLongest, idle)), afkAlerts,
 		idledCount, FormatDuration(now - afkStartedAt)
@@ -1314,14 +1453,15 @@ local function UpdateAfk()
 	if idle >= threshold * afkAlertStep then
 		afkAlertStep += 1
 		afkAlerts += 1
-		ShowToast("⚠ AFK: ไม่มีการใช้งาน " .. FormatDuration(idle))
+		ShowToast(L("⚠ AFK: ไม่มีการใช้งาน ") .. FormatDuration(idle))
 	end
 end
 
 ---------------------------------------------------------------------
 -- 10. SETTINGS PAGE
 ---------------------------------------------------------------------
-local SettingsPage = CreatePage("Settings")
+do -- ห่อส่วน Settings ไว้ใน block เพื่อไม่ให้ตัวแปร local เกินขีดจำกัด 200 ตัวของ Luau
+local SettingsPage = CreateScrollPage("Settings", 352)
 MakeHeader(SettingsPage, "YINYANG HUB SETTINGS")
 
 local function SettingButton(text, xScale, y)
@@ -1386,7 +1526,7 @@ end))
 
 Track(SaveButton.MouseButton1Click:Connect(function()
 	SaveConfig()
-	ShowToast("บันทึกการตั้งค่าแล้ว")
+	ShowToast(L("บันทึกการตั้งค่าแล้ว"))
 end))
 
 Track(ResetButton.MouseButton1Click:Connect(function()
@@ -1400,14 +1540,61 @@ Track(ResetButton.MouseButton1Click:Connect(function()
 	Config.AccentBlue = Themes[1].Accent
 	Config.WatermarkColor = WatermarkColors[1].Color
 	Refresh()
-	ShowToast("รีเซ็ตเป็นค่าเริ่มต้นแล้ว (กด SAVE เพื่อบันทึก)")
+	ShowToast(L("รีเซ็ตเป็นค่าเริ่มต้นแล้ว (กด SAVE เพื่อบันทึก)"))
+end))
+
+local LangButton = SettingButton("", 0, 144)
+local EnvButton = SettingButton("", 0.52, 144)
+Bind(LangButton, "Text", function()
+	return "LANGUAGE: " .. (Config.Language == "EN" and "ENGLISH" or "ไทย")
+end)
+Bind(EnvButton, "Text", function()
+	if RunService:IsStudio() then
+		return "ENV: STUDIO"
+	end
+	return IsOwnerGame and "ENV: OWN GAME" or "ENV: PUBLIC (LIMITED)"
+end)
+
+local function ApplyLanguage()
+	local map = Config.Language == "EN" and TR or REV
+	for _, object in ipairs(ScreenGui:GetDescendants()) do
+		if object:IsA("TextLabel") or object:IsA("TextButton") then
+			local translated = map[object.Text]
+			if translated then
+				object.Text = translated
+			end
+		elseif object:IsA("TextBox") then
+			local translated = map[object.PlaceholderText]
+			if translated then
+				object.PlaceholderText = translated
+			end
+		end
+	end
+end
+
+Track(LangButton.MouseButton1Click:Connect(function()
+	Config.Language = Config.Language == "EN" and "TH" or "EN"
+	pcall(function()
+		LocalPlayer:SetAttribute("YYH_Lang", Config.Language)
+	end)
+	ApplyLanguage()
+	for category, button in pairs(CategoryButtons) do
+		button.Text = CategoryLabel(category)
+	end
+	RenderScripts()
+	Refresh()
+	ShowToast(Config.Language == "EN" and "Language: English" or "ภาษา: ไทย")
+end))
+
+Track(EnvButton.MouseButton1Click:Connect(function()
+	ShowToast(L("ฟังก์ชันตัวละคร/ฟาร์ม/ESP/Damage ใช้ได้เฉพาะ Studio หรือเกมที่คุณเป็นเจ้าของ"))
 end))
 
 New("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 18),
-	Position = UDim2.fromOffset(0, 148),
+	Position = UDim2.fromOffset(0, 178),
 	BackgroundTransparency = 1,
-	Text = "LINKS (แตะเพื่อเลือกข้อความ แล้วกด Ctrl+C)",
+	Text = L("LINKS (แตะเพื่อเลือกข้อความ แล้วกด Ctrl+C)"),
 	TextColor3 = Config.TextLight,
 	Font = Enum.Font.GothamBold,
 	TextSize = 10,
@@ -1436,29 +1623,106 @@ local function LinkBox(text, y)
 	end))
 	return box
 end
-LinkBox(Config.YouTubeURL, 166)
-LinkBox(Config.TikTokURL, 192)
+LinkBox(Config.YouTubeURL, 196)
+LinkBox(Config.TikTokURL, 222)
 
-New("TextLabel", {
+local HotkeyLabel = New("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 18),
-	Position = UDim2.fromOffset(0, 218),
+	Position = UDim2.fromOffset(0, 250),
 	BackgroundTransparency = 1,
-	Text = "Hotkey: " .. Config.Hotkey.Name .. " = ซ่อน/แสดงหน้าต่าง",
 	TextColor3 = Config.TextLight,
 	Font = Enum.Font.Gotham,
 	TextSize = 10,
 	TextXAlignment = Enum.TextXAlignment.Left
 }, SettingsPage)
+Bind(HotkeyLabel, "Text", function()
+	return L("แตะ Watermark หรือกด ") .. Config.Hotkey.Name .. L(" = ซ่อน/แสดงหน้าต่าง")
+end)
+
+-- ช่องสุดท้าย: โค้ดแอดมินปลดล็อก Damage (ล็อกเฉพาะ Damage ฟังก์ชันอื่นทำงานปกติ)
+New("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 16),
+	Position = UDim2.fromOffset(0, 272),
+	BackgroundTransparency = 1,
+	Text = L("ADMIN CODE (ปลดล็อก Damage เท่านั้น)"),
+	TextColor3 = Config.TextLight,
+	Font = Enum.Font.GothamBold,
+	TextSize = 10,
+	TextXAlignment = Enum.TextXAlignment.Left
+}, SettingsPage)
+
+local AdminBox = New("TextBox", {
+	Size = UDim2.new(1, 0, 0, 28),
+	Position = UDim2.fromOffset(0, 290),
+	BackgroundColor3 = Config.ButtonWhite,
+	TextColor3 = Config.TextDark,
+	Font = Enum.Font.Code,
+	TextSize = 12,
+	Text = "",
+	PlaceholderText = L("ใส่โค้ดจากแอดมิน"),
+	ClearTextOnFocus = true,
+	TextXAlignment = Enum.TextXAlignment.Left
+}, SettingsPage)
+Corner(AdminBox, 6)
+Stroke(AdminBox)
+New("UIPadding", {PaddingLeft = UDim.new(0, 8)}, AdminBox)
+
+local AdminStatus = New("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 16),
+	Position = UDim2.fromOffset(0, 322),
+	BackgroundTransparency = 1,
+	TextColor3 = Config.TextLight,
+	Font = Enum.Font.Gotham,
+	TextSize = 10,
+	TextXAlignment = Enum.TextXAlignment.Left
+}, SettingsPage)
+Bind(AdminStatus, "Text", function()
+	if Config.DamageUnlocked then
+		return L("🔓 Damage ปลดล็อกแล้ว")
+	end
+	return L("🔒 Damage ถูกล็อก — ขอโค้ดจากแอดมินผู้จัดทำ")
+end)
+
+local adminFails, adminLockedUntil = 0, 0
+Track(AdminBox.FocusLost:Connect(function()
+	local entered = AdminBox.Text:match("^%s*(.-)%s*$")
+	AdminBox.Text = ""
+	if entered == "" then
+		return
+	end
+	local now = os.clock()
+	if now < adminLockedUntil then
+		ShowToast(string.format(L("ลองใหม่อีกครั้งใน %d วินาที"), math.ceil(adminLockedUntil - now)))
+		return
+	end
+	if HashCode(entered) == ADMIN_CODE_HASH then
+		Config.DamageUnlocked = true
+		adminFails = 0
+		pcall(function()
+			LocalPlayer:SetAttribute("YYH_DmgUnlocked", ADMIN_CODE_HASH)
+		end)
+		ShowToast(L("ปลดล็อก Damage แล้ว"))
+	else
+		adminFails += 1
+		if adminFails >= 5 then
+			adminFails = 0
+			adminLockedUntil = now + 30 -- ใส่ผิด 5 ครั้งรอ 30 วินาที
+		end
+		ShowToast(L("โค้ดไม่ถูกต้อง"))
+	end
+	Refresh()
+end))
+end
 
 ---------------------------------------------------------------------
 -- CHARACTER PAGE (Speed / Jump / Infinite Jump / Fly) - Studio เท่านั้น
 ---------------------------------------------------------------------
-local CharacterPage = CreateScrollPage("Character", 330)
+local CharacterPage = CreateScrollPage("Character", 338)
 
 local function StudioOnlyToggle(button, key, onEnable)
 	Track(button.MouseButton1Click:Connect(function()
 		if not IsStudio then
-			ShowToast("ฟังก์ชันตัวละครใช้ได้เฉพาะใน Roblox Studio")
+			ShowToast(L("ฟังก์ชันตัวละครใช้ได้เฉพาะใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ"))
 			return
 		end
 		Config[key] = not Config[key]
@@ -1524,11 +1788,11 @@ end
 
 Bind(CharInfo, "Text", function()
 	if not IsStudio then
-		return "ฟังก์ชันตัวละครถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio (ใช้ทดสอบตัวละครในเกมของคุณ)"
+		return L("ฟังก์ชันตัวละครถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ (ใช้ทดสอบตัวละครในเกมของคุณ)")
 	end
-	local text = "• SPEED/JUMP ปรับค่าตามสไลด์ และคืนค่าเดิมเมื่อปิด\n• FLY: WASD/จอยสติ๊กเคลื่อนที่ตามกล้อง, Space = ขึ้น, Shift = ลง\n• AUTO HEAL เพิ่มเลือดต่อเนื่อง / INFINITE HEALTH เลือดไม่จำกัด (ใน Play Solo; โหมดหลายผู้เล่นเซิร์ฟเวอร์ยังคุมเลือดจริง)"
+	local text = L("• SPEED/JUMP ปรับค่าตามสไลด์ และคืนค่าเดิมเมื่อปิด\n• FLY: WASD/จอยสติ๊กเคลื่อนที่ตามกล้อง, Space = ขึ้น, Shift = ลง\n• AUTO HEAL เพิ่มเลือดต่อเนื่อง / INFINITE HEALTH เลือดไม่จำกัด (ใน Play Solo; โหมดหลายผู้เล่นเซิร์ฟเวอร์ยังคุมเลือดจริง)")
 	if ComboActive() then
-		text ..= "\n🚀 COMBO: เปิด Speed + Jump + Infinite Jump — กดกระโดดเพื่อพุ่งไปข้างหน้า"
+		text ..= L("\n🚀 COMBO: เปิด Speed + Jump + Infinite Jump — กดกระโดดเพื่อพุ่งไปข้างหน้า")
 	end
 	return text
 end)
@@ -1866,7 +2130,7 @@ end))
 ---------------------------------------------------------------------
 -- FARM PAGE (Auto Farm ไอเทมในเกมของคุณ - Studio เท่านั้น)
 ---------------------------------------------------------------------
-local FarmPage = CreateScrollPage("Farm", 424)
+local FarmPage = CreateScrollPage("Farm", 432)
 
 local FarmToggle = MakeToggle(FarmPage, "AUTO FARM", UDim2.new(0.5, 0, 0, 36), UDim2.fromOffset(0, 4), function()
 	return Config.FarmEnabled
@@ -1881,7 +2145,7 @@ New("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 16),
 	Position = UDim2.fromOffset(0, 86),
 	BackgroundTransparency = 1,
-	Text = "ITEM TAG / ชื่อ Folder ใน Workspace",
+	Text = L("ITEM TAG / ชื่อ Folder ใน Workspace"),
 	TextColor3 = Config.TextLight,
 	Font = Enum.Font.GothamBold,
 	TextSize = 10,
@@ -1925,7 +2189,7 @@ local FarmInfo = New("TextLabel", {
 	Font = Enum.Font.Gotham,
 	TextSize = 10,
 	TextWrapped = true,
-	Text = "• ใช้กับแมพของคุณ: ติด Tag (CollectionService) ให้ไอเทม หรือวางไว้ใน Folder ชื่อเดียวกับช่อง TAG\n• FLY = บินไปหาไอเทม / WARP = วาร์ปไปทับ (เลือกได้อย่างเดียว ไม่ทำพร้อมกัน)"
+	Text = L("• ใช้กับแมพของคุณ: ติด Tag (CollectionService) ให้ไอเทม หรือวางไว้ใน Folder ชื่อเดียวกับช่อง TAG\n• FLY = บินไปหาไอเทม / WARP = วาร์ปไปทับ (เลือกได้อย่างเดียว ไม่ทำพร้อมกัน)")
 }, FarmPage)
 Bind(FarmInfo, "BackgroundColor3", function()
 	return Config.AccentBlue
@@ -1976,7 +2240,9 @@ local function ParseBig(text)
 	return math.clamp(number, 0, DAMAGE_MAX)
 end
 
-local DamageToggle = MakeToggle(FarmPage, "DAMAGE", UDim2.new(0.4, 0, 0, 34), UDim2.fromOffset(0, 262), function()
+local DamageToggle = MakeToggle(FarmPage, function()
+	return Config.DamageUnlocked and "DAMAGE" or "DAMAGE [LOCKED]"
+end, UDim2.new(0.4, 0, 0, 34), UDim2.fromOffset(0, 262), function()
 	return Config.DamageEnabled
 end)
 
@@ -1988,22 +2254,26 @@ local DamageBox = New("TextBox", {
 	Font = Enum.Font.Code,
 	TextSize = 12,
 	Text = FormatBig(Config.DamageValue),
-	PlaceholderText = "เช่น 4,410.04Qi",
+	PlaceholderText = L("เช่น 4,410.04Qi"),
 	ClearTextOnFocus = false
 }, FarmPage)
 Corner(DamageBox, 6)
 Stroke(DamageBox)
 
-New("TextLabel", {
+local DamageHeader = New("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 16),
 	Position = UDim2.fromOffset(0, 244),
 	BackgroundTransparency = 1,
-	Text = "DAMAGE (ทดสอบกับศัตรูใน Studio) — สูงสุด " .. FormatBig(DAMAGE_MAX),
+	Text = L("DAMAGE (ทดสอบกับศัตรูใน Studio) — สูงสุด ") .. FormatBig(DAMAGE_MAX),
 	TextColor3 = Config.TextLight,
 	Font = Enum.Font.GothamBold,
 	TextSize = 10,
 	TextXAlignment = Enum.TextXAlignment.Left
 }, FarmPage)
+
+Bind(DamageHeader, "Text", function()
+	return L("DAMAGE (ทดสอบกับศัตรูใน Studio) — สูงสุด ") .. FormatBig(DAMAGE_MAX)
+end)
 
 local function SetDamage(value)
 	Config.DamageValue = math.clamp(value, 0, DAMAGE_MAX)
@@ -2027,7 +2297,7 @@ Track(DamageBox.FocusLost:Connect(function()
 	if value then
 		SetDamage(value)
 	else
-		ShowToast("รูปแบบตัวเลขไม่ถูกต้อง")
+		ShowToast(L("รูปแบบตัวเลขไม่ถูกต้อง"))
 		DamageBox.Text = FormatBig(Config.DamageValue)
 	end
 end))
@@ -2036,7 +2306,7 @@ New("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 16),
 	Position = UDim2.fromOffset(0, 336),
 	BackgroundTransparency = 1,
-	Text = "ENEMY TAG / ชื่อ Folder ของศัตรู (ต้องมี Humanoid)",
+	Text = L("ENEMY TAG / ชื่อ Folder ของศัตรู (ต้องมี Humanoid)"),
 	TextColor3 = Config.TextLight,
 	Font = Enum.Font.GothamBold,
 	TextSize = 10,
@@ -2106,7 +2376,12 @@ end
 
 local function UpdateDamage()
 	if not IsStudio then
-		DamageStatus.Text = "Damage ถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio"
+		DamageStatus.Text = L("Damage ถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ")
+		return
+	end
+	if not Config.DamageUnlocked then
+		Config.DamageEnabled = false
+		DamageStatus.Text = L("DAMAGE: LOCKED — ใส่โค้ดแอดมินที่ Settings")
 		return
 	end
 	if not Config.DamageEnabled then
@@ -2132,22 +2407,33 @@ local function UpdateDamage()
 			lastDamageAt = now
 		end
 	end
-	DamageStatus.Text = string.format("DAMAGE: ON | %s ต่อครั้ง (ทุก %.1f วินาที, ระยะ %d studs)\nศัตรูในระยะ: %d | โจมตีแล้ว: %d ครั้ง",
+	DamageStatus.Text = string.format(L("DAMAGE: ON | %s ต่อครั้ง (ทุก %.1f วินาที, ระยะ %d studs)\nศัตรูในระยะ: %d | โจมตีแล้ว: %d ครั้ง"),
 		FormatBig(Config.DamageValue), DAMAGE_INTERVAL, DAMAGE_RANGE, damageInRange, damageHits)
 end
 
-StudioOnlyToggle(DamageToggle, "DamageEnabled")
+Track(DamageToggle.MouseButton1Click:Connect(function()
+	if not IsStudio then
+		ShowToast(L("ฟังก์ชันตัวละครใช้ได้เฉพาะใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ"))
+		return
+	end
+	if not Config.DamageUnlocked then
+		ShowToast(L("Damage ถูกล็อก: ใส่โค้ดแอดมินที่ Settings (ช่องสุดท้าย)"))
+		return
+	end
+	Config.DamageEnabled = not Config.DamageEnabled
+	Refresh()
+end))
 
 local function UpdateFarmStatus()
 	if not IsStudio then
-		FarmStatus.Text = "Auto Farm ถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio (ใช้ทดสอบแมพของคุณ)"
+		FarmStatus.Text = L("Auto Farm ถูกปิด: จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ (ใช้ทดสอบแมพของคุณ)")
 		return
 	end
 	local speedText = Config.FarmMode == "Warp"
-		and string.format("%.1f ครั้ง/วินาที", Config.FarmSpeed / 25)
+		and string.format(L("%.1f ครั้ง/วินาที"), Config.FarmSpeed / 25)
 		or string.format("%d studs/s", Config.FarmSpeed)
 	FarmStatus.Text = string.format(
-		"FARM: %s | %s | %s\nพบไอเทม: %d | ไปถึงแล้ว: %d\nเป้าหมาย: %s",
+		L("FARM: %s | %s | %s\nพบไอเทม: %d | ไปถึงแล้ว: %d\nเป้าหมาย: %s"),
 		Config.FarmEnabled and "ON" or "OFF", string.upper(Config.FarmMode), speedText,
 		Farm.Found, Farm.Collected, Farm.Target and Farm.Target.Name or "-"
 	)
@@ -2164,7 +2450,7 @@ Track(FarmModeBtn.MouseButton1Click:Connect(function()
 	Farm.Target = nil
 	Farm.ReachedAt = nil
 	Refresh()
-	ShowToast("โหมดฟาร์ม: " .. string.upper(Config.FarmMode))
+	ShowToast(L("โหมดฟาร์ม: ") .. string.upper(Config.FarmMode))
 end))
 
 Track(FarmTagBox.FocusLost:Connect(function()
@@ -2247,7 +2533,7 @@ if IsStudio then
 		AttachPlayer(player)
 	end
 else
-	EspInfo.Text = "Debug overlay ถูกปิด: ฟังก์ชันนี้จำกัดการใช้งานไว้ใน Roblox Studio"
+	EspInfo.Text = L("Debug overlay ถูกปิด: ฟังก์ชันนี้จำกัดการใช้งานไว้ใน Roblox Studio หรือเกมที่คุณเป็นเจ้าของ")
 end
 
 RebuildFavorites()
