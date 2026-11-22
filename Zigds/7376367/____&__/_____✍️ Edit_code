@@ -546,4 +546,65 @@ task.spawn(function()
         task.wait(waitTime)
         if AutoEnabled then
             if CodeInput.Text ~= "" and not CodeInput.Text:match("^%s*$") then
-               
+                              RunEditorCode(CodeInput.Text)
+            end
+        end
+    end
+end)
+
+-- ตัวอย่างการกดปุ่ม บันทึก / ยกเลิก ให้รายการขึ้นใน SaveScroll
+local function RefreshSaveList()
+    for _, child in ipairs(SaveScroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    for i, itemCode in ipairs(SavedList) do
+        local itemBtn = Instance.new("TextButton")
+        itemBtn.Size = UDim2.new(1, -6, 0, 20)
+        itemBtn.BackgroundColor3 = Color3.fromRGB(35, 22, 58)
+        itemBtn.Text = tostring(i) .. ". " .. itemCode:gsub("\n", " ")
+        itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        itemBtn.Font = Enum.Font.Code
+        itemBtn.TextSize = 10
+        itemBtn.TextXAlignment = Enum.TextXAlignment.Left
+        itemBtn.TextTruncate = Enum.TextTruncate.AtEnd
+        itemBtn.Parent = SaveScroll
+        Instance.new("UICorner", itemBtn).CornerRadius = UDim.new(0, 4)
+
+        itemBtn.MouseButton1Click:Connect(function()
+            CodeInput.Text = itemCode
+            SetStatus("สถานะ: โหลดโค้ดลำดับที่ " .. tostring(i) .. " ลงช่องแก้ไขแล้ว", false)
+        end)
+    end
+
+    SaveScroll.CanvasSize = UDim2.new(0, 0, 0, SaveLayout.AbsoluteContentSize.Y + 6)
+    SaveTitle.Text = "💾 บันทึกโค้ดทั้งหมด (" .. tostring(#SavedList) .. " / " .. tostring(MaxSaveCount) .. ")"
+end
+
+SaveBtn.MouseButton1Click:Connect(function()
+    local textToSave = SaveInput.Text
+    if textToSave == "" or textToSave:match("^%s*$") then
+        textToSave = CodeInput.Text
+    end
+    if textToSave == "" or textToSave:match("^%s*$") then
+        SetStatus("⚠️ ไม่มีโค้ดให้บันทึก", true)
+        return
+    end
+    if #SavedList >= MaxSaveCount then
+        SetStatus("⚠️ บันทึกครบ " .. tostring(MaxSaveCount) .. " รายการแล้ว", true)
+        return
+    end
+    table.insert(SavedList, textToSave)
+    SaveInput.Text = ""
+    RefreshSaveList()
+    SetStatus("✅ บันทึกโค้ดแล้ว (" .. tostring(#SavedList) .. "/" .. tostring(MaxSaveCount) .. ")", false)
+end)
+
+CancelBtn.MouseButton1Click:Connect(function()
+    SaveInput.Text = ""
+    SaveInput:ReleaseFocus()
+    SetStatus("สถานะ: ยกเลิกการพิมพ์บันทึกแล้ว", false)
+end)
+
