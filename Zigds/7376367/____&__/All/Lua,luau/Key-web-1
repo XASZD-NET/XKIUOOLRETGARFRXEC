@@ -303,7 +303,7 @@ pcall(function()
 			editSubInfo.Text = "กำลังโหลด Edit_code..."
 			task.spawn(function()
 				local ok, err = pcall(function()
-					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/_____%E2%9C%8D%EF%B8%8F%20Edit_code"))()
+					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/Edit_code_fixed.lua"))()
 				end)
 				editSubInfo.Text = ok and "โหลด Edit_code แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
 			end)
