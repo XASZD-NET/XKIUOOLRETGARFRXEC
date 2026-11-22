@@ -1,535 +1,327 @@
--- [[ Services ]] --
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
+pcall(function()
+	local Players = game:GetService("Players")
+	local TweenService = game:GetService("TweenService")
+	local RunService = game:GetService("RunService")
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+	local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+	local playerGui = player:WaitForChild("PlayerGui", 10)
+	if not playerGui then return end
 
--- ป้องกันการรันซ้ำ
-local existingGui = playerGui:FindFirstChild("CustomRockKeyHub") or CoreGui:FindFirstChild("CustomRockKeyHub")
-if existingGui then
-	existingGui:Destroy()
-end
+	local old = playerGui:FindFirstChild("RockKeySystemGui")
+	if old then old:Destroy() end
 
--- [[ ScreenGui Setup ]] --
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "CustomRockKeyHub"
-screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
--- พยายามใส่ใน CoreGui ก่อน ถ้าไม่ได้ให้ใช้ PlayerGui
-local success = pcall(function()
-	screenGui.Parent = CoreGui
-end)
-if not success then
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "RockKeySystemGui"
+	screenGui.ResetOnSpawn = false
+	screenGui.DisplayOrder = 999999
+	screenGui.IgnoreGuiInset = true
 	screenGui.Parent = playerGui
-end
 
--- [[ Helper: Make Frame Draggable ]] --
-local function makeDraggable(frame, handle)
-	handle = handle or frame
-	local dragging = false
-	local dragInput, dragStart, startPos
+	-- ==========================================
+	-- 1. หน้าต่างระบบคีย์ (แยกชั้นชัดเจน ไม่ซ้อน)
+	-- ==========================================
+	local keyFrame = Instance.new("Frame")
+	keyFrame.Name = "KeyFrame"
+	keyFrame.Size = UDim2.new(0, 340, 0, 210)
+	keyFrame.Position = UDim2.new(0.5, -170, 0.5, -105)
+	keyFrame.BackgroundColor3 = Color3.fromRGB(22, 18, 42)
+	keyFrame.BorderSizePixel = 0
+	keyFrame.Active = true
+	keyFrame.Draggable = true
+	keyFrame.ZIndex = 10
+	keyFrame.Parent = screenGui
+	Instance.new("UICorner", keyFrame).CornerRadius = UDim.new(0, 12)
 
-	handle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = frame.Position
+	local keyTitle = Instance.new("TextLabel")
+	keyTitle.Size = UDim2.new(1, 0, 0, 36)
+	keyTitle.Position = UDim2.new(0, 0, 0, 0)
+	keyTitle.BackgroundColor3 = Color3.fromRGB(36, 28, 72)
+	keyTitle.Text = "🦅 ROCK KEY SYSTEM"
+	keyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	keyTitle.TextSize = 14
+	keyTitle.Font = Enum.Font.GothamBold
+	keyTitle.ZIndex = 12
+	keyTitle.Parent = keyFrame
+	Instance.new("UICorner", keyTitle).CornerRadius = UDim.new(0, 12)
 
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
+	local keyBox = Instance.new("TextBox")
+	keyBox.Name = "KeyInputBox"
+	keyBox.Size = UDim2.new(1, -28, 0, 38)
+	keyBox.Position = UDim2.new(0, 14, 0, 48)
+	keyBox.BackgroundColor3 = Color3.fromRGB(50, 44, 86)
+	keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	keyBox.PlaceholderText = "ใส่คีย์อะไรก็ได้ หรือกด Copy & Paste..."
+	keyBox.PlaceholderColor3 = Color3.fromRGB(185, 185, 215)
+	keyBox.Text = ""
+	keyBox.TextSize = 13
+	keyBox.Font = Enum.Font.Gotham
+	keyBox.ClearTextOnFocus = false
+	keyBox.ZIndex = 15
+	keyBox.Parent = keyFrame
+	Instance.new("UICorner", keyBox).CornerRadius = UDim.new(0, 8)
+
+	local copyPasteBtn = Instance.new("TextButton")
+	copyPasteBtn.Name = "CopyPasteBtn"
+	copyPasteBtn.Size = UDim2.new(0.5, -18, 0, 38)
+	copyPasteBtn.Position = UDim2.new(0, 14, 0, 98)
+	copyPasteBtn.BackgroundColor3 = Color3.fromRGB(65, 120, 240)
+	copyPasteBtn.Text = "Copy & Paste Key"
+	copyPasteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	copyPasteBtn.TextSize = 13
+	copyPasteBtn.Font = Enum.Font.GothamBold
+	copyPasteBtn.ZIndex = 15
+	copyPasteBtn.Parent = keyFrame
+	Instance.new("UICorner", copyPasteBtn).CornerRadius = UDim.new(0, 8)
+
+	local confirmKeyBtn = Instance.new("TextButton")
+	confirmKeyBtn.Name = "ConfirmKeyBtn"
+	confirmKeyBtn.Size = UDim2.new(0.5, -18, 0, 38)
+	confirmKeyBtn.Position = UDim2.new(0.5, 4, 0, 98)
+	confirmKeyBtn.BackgroundColor3 = Color3.fromRGB(45, 190, 115)
+	confirmKeyBtn.Text = "ยืนยันคีย์"
+	confirmKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	confirmKeyBtn.TextSize = 13
+	confirmKeyBtn.Font = Enum.Font.GothamBold
+	confirmKeyBtn.ZIndex = 15
+	confirmKeyBtn.Parent = keyFrame
+	Instance.new("UICorner", confirmKeyBtn).CornerRadius = UDim.new(0, 8)
+
+	local keyStatus = Instance.new("TextLabel")
+	keyStatus.Name = "KeyStatus"
+	keyStatus.Size = UDim2.new(1, -28, 0, 26)
+	keyStatus.Position = UDim2.new(0, 14, 0, 148)
+	keyStatus.BackgroundTransparency = 1
+	keyStatus.Text = "พิมพ์คีย์อะไรก็ได้แล้วกด ยืนยันคีย์"
+	keyStatus.TextColor3 = Color3.fromRGB(200, 215, 255)
+	keyStatus.TextSize = 12
+	keyStatus.Font = Enum.Font.Gotham
+	keyStatus.ZIndex = 15
+	keyStatus.Parent = keyFrame
+
+	-- ==========================================
+	-- 2. วงกลมลากได้ + หมุนได้ + บุบ/ขยาย
+	-- ==========================================
+	local circleBtn = Instance.new("ImageButton")
+	circleBtn.Name = "CircleToggle"
+	circleBtn.Size = UDim2.new(0, 66, 0, 66)
+	circleBtn.Position = UDim2.new(0.08, 0, 0.35, 0)
+	circleBtn.BackgroundColor3 = Color3.fromRGB(28, 20, 62)
+	circleBtn.AutoButtonColor = false
+	circleBtn.Active = true
+	circleBtn.Draggable = true
+	circleBtn.Visible = false
+	circleBtn.ZIndex = 30
+	circleBtn.Parent = screenGui
+	Instance.new("UICorner", circleBtn).CornerRadius = UDim.new(1, 0)
+
+	local circleLabel = Instance.new("TextLabel")
+	circleLabel.Size = UDim2.new(1, 0, 1, 0)
+	circleLabel.BackgroundTransparency = 1
+	circleLabel.Text = "🦅"
+	circleLabel.TextSize = 24
+	circleLabel.Font = Enum.Font.GothamBold
+	circleLabel.ZIndex = 31
+	circleLabel.Parent = circleBtn
+
+	RunService.RenderStepped:Connect(function(dt)
+		if circleBtn.Visible then
+			circleBtn.Rotation = (circleBtn.Rotation + dt * 60) % 360
+			circleLabel.Rotation = -circleBtn.Rotation
 		end
 	end)
 
-	handle.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end)
+	-- ==========================================
+	-- 3. หน้าต่างเลือกโหมด
+	-- ==========================================
+	local selectorFrame = Instance.new("Frame")
+	selectorFrame.Name = "SelectorFrame"
+	selectorFrame.Size = UDim2.new(0, 350, 0, 205)
+	selectorFrame.Position = UDim2.new(0.5, -175, 0.5, -102)
+	selectorFrame.BackgroundColor3 = Color3.fromRGB(22, 18, 42)
+	selectorFrame.BorderSizePixel = 0
+	selectorFrame.Active = true
+	selectorFrame.Draggable = true
+	selectorFrame.Visible = false
+	selectorFrame.ZIndex = 20
+	selectorFrame.Parent = screenGui
+	Instance.new("UICorner", selectorFrame).CornerRadius = UDim.new(0, 12)
 
-	RunService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
-		end
-	end)
-end
+	local askTitle = Instance.new("TextLabel")
+	askTitle.Size = UDim2.new(1, -44, 0, 38)
+	askTitle.Position = UDim2.new(0, 10, 0, 4)
+	askTitle.BackgroundTransparency = 1
+	askTitle.Text = "คุณจะเอาอะไรระหว่างโปรแกรมแก้ไขโค้ด หรือโปรแกรมตัวละครและ player"
+	askTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	askTitle.TextSize = 11
+	askTitle.Font = Enum.Font.GothamBold
+	askTitle.TextWrapped = true
+	askTitle.ZIndex = 21
+	askTitle.Parent = selectorFrame
 
--- [[ Helper: Create Styled Window ]] --
-local zCounter = 10
-local function bringToFront(frame)
-	zCounter += 1
-	frame.ZIndex = zCounter
-	for _, desc in ipairs(frame:GetDescendants()) do
-		if desc:IsA("GuiObject") then
-			desc.ZIndex = zCounter + 1
-		end
-	end
-end
+	local minSelectorBtn = Instance.new("TextButton")
+	minSelectorBtn.Size = UDim2.new(0, 26, 0, 26)
+	minSelectorBtn.Position = UDim2.new(1, -32, 0, 6)
+	minSelectorBtn.BackgroundColor3 = Color3.fromRGB(255, 175, 50)
+	minSelectorBtn.Text = "—"
+	minSelectorBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
+	minSelectorBtn.Font = Enum.Font.GothamBold
+	minSelectorBtn.ZIndex = 22
+	minSelectorBtn.Parent = selectorFrame
+	Instance.new("UICorner", minSelectorBtn).CornerRadius = UDim.new(0, 6)
 
-local function createWindow(titleText, size, position)
-	local win = Instance.new("Frame")
-	win.Name = titleText .. "_Window"
-	win.Size = size
-	win.Position = position
-	win.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
-	win.BorderSizePixel = 0
-	win.Active = true
-	win.Parent = screenGui
+	local editCodeBtn = Instance.new("TextButton")
+	editCodeBtn.Size = UDim2.new(1, -28, 0, 42)
+	editCodeBtn.Position = UDim2.new(0, 14, 0, 56)
+	editCodeBtn.BackgroundColor3 = Color3.fromRGB(65, 120, 240)
+	editCodeBtn.Text = "โปรแกรมแก้ไขโค้ด (Edit Code)"
+	editCodeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	editCodeBtn.TextSize = 13
+	editCodeBtn.Font = Enum.Font.GothamBold
+	editCodeBtn.ZIndex = 21
+	editCodeBtn.Parent = selectorFrame
+	Instance.new("UICorner", editCodeBtn).CornerRadius = UDim.new(0, 8)
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = win
+	local multiPlayerBtn = Instance.new("TextButton")
+	multiPlayerBtn.Size = UDim2.new(1, -28, 0, 42)
+	multiPlayerBtn.Position = UDim2.new(0, 14, 0, 110)
+	multiPlayerBtn.BackgroundColor3 = Color3.fromRGB(155, 75, 225)
+	multiPlayerBtn.Text = "โปรแกรมตัวละครและ player (Multiplayer)"
+	multiPlayerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	multiPlayerBtn.TextSize = 13
+	multiPlayerBtn.Font = Enum.Font.GothamBold
+	multiPlayerBtn.ZIndex = 21
+	multiPlayerBtn.Parent = selectorFrame
+	Instance.new("UICorner", multiPlayerBtn).CornerRadius = UDim.new(0, 8)
 
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(70, 70, 90)
-	stroke.Thickness = 1.5
-	stroke.Parent = win
+	-- ==========================================
+	-- 4. หน้าต่างย่อยที่เปิดทับซ้อนกันได้
+	-- ==========================================
+	local function createSubWindow(name, titleStr, pos, bgCol)
+		local win = Instance.new("Frame")
+		win.Name = name
+		win.Size = UDim2.new(0, 300, 0, 130)
+		win.Position = pos
+		win.BackgroundColor3 = bgCol
+		win.BorderSizePixel = 0
+		win.Active = true
+		win.Draggable = true
+		win.Visible = false
+		win.ZIndex = 25
+		win.Parent = screenGui
+		Instance.new("UICorner", win).CornerRadius = UDim.new(0, 12)
 
-	-- Topbar
-	local topbar = Instance.new("Frame")
-	topbar.Name = "Topbar"
-	topbar.Size = UDim2.new(1, 0, 0, 36)
-	topbar.BackgroundColor3 = Color3.fromRGB(34, 34, 44)
-	topbar.BorderSizePixel = 0
-	topbar.Parent = win
+		local lbl = Instance.new("TextLabel")
+		lbl.Size = UDim2.new(1, -40, 0, 30)
+		lbl.Position = UDim2.new(0, 10, 0, 4)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = titleStr
+		lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+		lbl.TextSize = 12
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.ZIndex = 26
+		lbl.Parent = win
 
-	local topCorner = Instance.new("UICorner")
-	topCorner.CornerRadius = UDim.new(0, 12)
-	topCorner.Parent = topbar
+		local minBtn = Instance.new("TextButton")
+		minBtn.Size = UDim2.new(0, 24, 0, 24)
+		minBtn.Position = UDim2.new(1, -30, 0, 6)
+		minBtn.BackgroundColor3 = Color3.fromRGB(255, 175, 50)
+		minBtn.Text = "—"
+		minBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
+		minBtn.Font = Enum.Font.GothamBold
+		minBtn.ZIndex = 27
+		minBtn.Parent = win
+		Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
-	local topFix = Instance.new("Frame")
-	topFix.Size = UDim2.new(1, 0, 0, 12)
-	topFix.Position = UDim2.new(0, 0, 1, -12)
-	topFix.BackgroundColor3 = Color3.fromRGB(34, 34, 44)
-	topFix.BorderSizePixel = 0
-	topFix.Parent = topbar
+		local info = Instance.new("TextLabel")
+		info.Size = UDim2.new(1, -20, 0, 75)
+		info.Position = UDim2.new(0, 10, 0, 40)
+		info.BackgroundTransparency = 1
+		info.Text = "เปิดทับซ้อนกันได้ กด — เพื่อย่อไปที่วงกลม"
+		info.TextColor3 = Color3.fromRGB(230, 235, 255)
+		info.TextSize = 11
+		info.Font = Enum.Font.Gotham
+		info.TextWrapped = true
+		info.ZIndex = 26
+		info.Parent = win
 
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, -80, 1, 0)
-	title.Position = UDim2.new(0, 12, 0, 0)
-	title.BackgroundTransparency = 1
-	title.Text = titleText
-	title.TextColor3 = Color3.fromRGB(240, 240, 250)
-	title.TextSize = 14
-	title.Font = Enum.Font.GothamBold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Parent = topbar
-
-	-- Minimize Button (ย่อไปที่วงกลม)
-	local minBtn = Instance.new("TextButton")
-	minBtn.Size = UDim2.new(0, 26, 0, 26)
-	minBtn.Position = UDim2.new(1, -32, 0.5, -13)
-	minBtn.BackgroundColor3 = Color3.fromRGB(255, 175, 50)
-	minBtn.Text = "—"
-	minBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
-	minBtn.TextSize = 14
-	minBtn.Font = Enum.Font.GothamBold
-	minBtn.Parent = topbar
-
-	local minCorner = Instance.new("UICorner")
-	minCorner.CornerRadius = UDim.new(0, 6)
-	minCorner.Parent = minBtn
-
-	win.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			bringToFront(win)
-		end
-	end)
-
-	makeDraggable(win, topbar)
-
-	return win, minBtn
-end
-
--- ==========================================
--- 1. KEY SYSTEM WINDOW
--- ==========================================
-local keyWin = createWindow("ROCK KEY SYSTEM", UDim2.new(0, 340, 0, 210), UDim2.new(0.5, -170, 0.5, -105))
--- ซ่อนปุ่มย่อในหน้า Key System
-if keyWin:FindFirstChild("Topbar") and keyWin.Topbar:FindFirstChild("TextButton") then
-	keyWin.Topbar.TextButton.Visible = false
-end
-
-local keyBox = Instance.new("TextBox")
-keyBox.Size = UDim2.new(1, -32, 0, 40)
-keyBox.Position = UDim2.new(0, 16, 0, 52)
-keyBox.BackgroundColor3 = Color3.fromRGB(36, 36, 46)
-keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-keyBox.PlaceholderText = "ใส่คีย์อะไรก็ได้ หรือกด Copy & Paste..."
-keyBox.PlaceholderColor3 = Color3.fromRGB(140, 140, 160)
-keyBox.Text = ""
-keyBox.TextSize = 14
-keyBox.Font = Enum.Font.Gotham
-keyBox.ClearTextOnFocus = false
-keyBox.Parent = keyWin
-
-local keyBoxCorner = Instance.new("UICorner")
-keyBoxCorner.CornerRadius = UDim.new(0, 8)
-keyBoxCorner.Parent = keyBox
-
-local copyPasteBtn = Instance.new("TextButton")
-copyPasteBtn.Size = UDim2.new(0.5, -20, 0, 38)
-copyPasteBtn.Position = UDim2.new(0, 16, 0, 106)
-copyPasteBtn.BackgroundColor3 = Color3.fromRGB(65, 115, 225)
-copyPasteBtn.Text = "Copy & Paste Key"
-copyPasteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-copyPasteBtn.TextSize = 13
-copyPasteBtn.Font = Enum.Font.GothamBold
-copyPasteBtn.Parent = keyWin
-
-local cpCorner = Instance.new("UICorner")
-cpCorner.CornerRadius = UDim.new(0, 8)
-cpCorner.Parent = copyPasteBtn
-
-local verifyBtn = Instance.new("TextButton")
-verifyBtn.Size = UDim2.new(0.5, -20, 0, 38)
-verifyBtn.Position = UDim2.new(0.5, 4, 0, 106)
-verifyBtn.BackgroundColor3 = Color3.fromRGB(45, 185, 110)
-verifyBtn.Text = "ยืนยันคีย์"
-verifyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-verifyBtn.TextSize = 13
-verifyBtn.Font = Enum.Font.GothamBold
-verifyBtn.Parent = keyWin
-
-local verCorner = Instance.new("UICorner")
-verCorner.CornerRadius = UDim.new(0, 8)
-verCorner.Parent = verifyBtn
-
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -32, 0, 24)
-statusLabel.Position = UDim2.new(0, 16, 0, 154)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "พิมพ์คีย์อะไรก็ได้แล้วกดยืนยัน"
-statusLabel.TextColor3 = Color3.fromRGB(170, 170, 190)
-statusLabel.TextSize = 12
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.Parent = keyWin
-
--- ==========================================
--- 2. FLOATING CIRCLE (ลากได้ + หมุนได้ + บุบ/ขยาย)
--- ==========================================
-local circleBtn = Instance.new("ImageButton")
-circleBtn.Name = "FloatingCircleToggle"
-circleBtn.Size = UDim2.new(0, 62, 0, 62)
-circleBtn.Position = UDim2.new(0.08, 0, 0.35, 0)
-circleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-circleBtn.AutoButtonColor = false
-circleBtn.Visible = false -- จะแสดงหลังยืนยันคีย์
-circleBtn.Parent = screenGui
-
-local circleCorner = Instance.new("UICorner")
-circleCorner.CornerRadius = UDim.new(1, 0)
-circleCorner.Parent = circleBtn
-
-local circleStroke = Instance.new("UIStroke")
-circleStroke.Color = Color3.fromRGB(0, 210, 255)
-circleStroke.Thickness = 2.5
-circleStroke.Parent = circleBtn
-
--- วงแหวนด้านในเพื่อให้เห็นการหมุนชัดเจน
-local ringFrame = Instance.new("Frame")
-ringFrame.Size = UDim2.new(1, -8, 1, -8)
-ringFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-ringFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-ringFrame.BackgroundTransparency = 1
-ringFrame.Parent = circleBtn
-
-local ringStroke = Instance.new("UIStroke")
-ringStroke.Color = Color3.fromRGB(255, 120, 200)
-ringStroke.Thickness = 2
-ringStroke.Parent = ringFrame
-
-local ringCorner = Instance.new("UICorner")
-ringCorner.CornerRadius = UDim.new(1, 0)
-ringCorner.Parent = ringFrame
-
-local dotAccent = Instance.new("Frame")
-dotAccent.Size = UDim2.new(0, 10, 0, 10)
-dotAccent.Position = UDim2.new(0.5, -5, 0, -2)
-dotAccent.BackgroundColor3 = Color3.fromRGB(255, 220, 70)
-dotAccent.BorderSizePixel = 0
-dotAccent.Parent = ringFrame
-
-local dotCorner = Instance.new("UICorner")
-dotCorner.CornerRadius = UDim.new(1, 0)
-dotCorner.Parent = dotAccent
-
-local circleLabel = Instance.new("TextLabel")
-circleLabel.Size = UDim2.new(1, 0, 1, 0)
-circleLabel.BackgroundTransparency = 1
-circleLabel.Text = "HUB"
-circleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-circleLabel.TextSize = 13
-circleLabel.Font = Enum.Font.GothamBlack
-circleLabel.Parent = circleBtn
-
--- หมุนวงกลมตลอดเวลา
-RunService.RenderStepped:Connect(function(dt)
-	if circleBtn.Visible then
-		circleBtn.Rotation = (circleBtn.Rotation + dt * 55) % 360
-		ringFrame.Rotation = (ringFrame.Rotation - dt * 95) % 360
-		-- รักษาตัวอักษร HUB ให้อยู่ในแนวนอนอ่านง่าย
-		circleLabel.Rotation = -circleBtn.Rotation
-	end
-end)
-
--- เอฟเฟกต์กดแล้วบุบและขยายสลับกันทุกครั้งที่คลิก
-local isIndented = false
-local function playDentExpandEffect()
-	isIndented = not isIndented
-	local dentSize = UDim2.new(0, 48, 0, 48) -- บุบยุบลง
-	local expandSize = UDim2.new(0, 70, 0, 70) -- ขยายออก
-	local targetSize = isIndented and dentSize or expandSize
-
-	local tweenDown = TweenService:Create(
-		circleBtn,
-		TweenInfo.new(0.11, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{ Size = dentSize }
-	)
-	local tweenTarget = TweenService:Create(
-		circleBtn,
-		TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-		{ Size = targetSize }
-	)
-
-	tweenDown:Play()
-	tweenDown.Completed:Connect(function()
-		tweenTarget:Play()
-	end)
-end
-
--- ลากวงกลมได้ และแยกจากการคลิก
-do
-	local dragging = false
-	local moved = false
-	local dragStart, startPos, dragInput
-
-	circleBtn.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			moved = false
-			dragStart = input.Position
-			startPos = circleBtn.Position
-
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-					if not moved then
-						playDentExpandEffect()
-						-- เปิด/สลับหน้าต่างหลักเมื่อคลิกที่วงกลม
-						local selectorWin = screenGui:FindFirstChild("SelectorMenu_Window")
-						if selectorWin then
-							selectorWin.Visible = not selectorWin.Visible
-							if selectorWin.Visible then
-								bringToFront(selectorWin)
-							end
-						end
-					end
-				end
-			end)
-		end
-	end)
-
-	circleBtn.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end)
-
-	RunService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			if delta.Magnitude > 6 then
-				moved = true
-			end
-			circleBtn.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
-		end
-	end)
-end
-
--- ==========================================
--- 3. SELECTOR WINDOW (เลือกโหมด)
--- ==========================================
-local selectorWin, selectorMinBtn = createWindow("SelectorMenu", UDim2.new(0, 360, 0, 215), UDim2.new(0.5, -180, 0.5, -107))
-selectorWin.Visible = false
-
-local askLabel = Instance.new("TextLabel")
-askLabel.Size = UDim2.new(1, -24, 0, 44)
-askLabel.Position = UDim2.new(0, 12, 0, 46)
-askLabel.BackgroundTransparency = 1
-askLabel.Text = "คุณจะเอาอะไรระหว่างโปรแกรมแก้ไขโค้ด\nหรือโปรแกรมตัวละครและ player"
-askLabel.TextColor3 = Color3.fromRGB(235, 235, 245)
-askLabel.TextSize = 13
-askLabel.Font = Enum.Font.GothamBold
-askLabel.TextWrapped = true
-askLabel.Parent = selectorWin
-
-local editCodeBtn = Instance.new("TextButton")
-editCodeBtn.Size = UDim2.new(1, -32, 0, 42)
-editCodeBtn.Position = UDim2.new(0, 16, 0, 98)
-editCodeBtn.BackgroundColor3 = Color3.fromRGB(58, 125, 235)
-editCodeBtn.Text = "โปรแกรมแก้ไขโค้ด (Edit Code)"
-editCodeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-editCodeBtn.TextSize = 13
-editCodeBtn.Font = Enum.Font.GothamBold
-editCodeBtn.Parent = selectorWin
-
-local editCorner = Instance.new("UICorner")
-editCorner.CornerRadius = UDim.new(0, 8)
-editCorner.Parent = editCodeBtn
-
-local multiBtn = Instance.new("TextButton")
-multiBtn.Size = UDim2.new(1, -32, 0, 42)
-multiBtn.Position = UDim2.new(0, 16, 0, 148)
-multiBtn.BackgroundColor3 = Color3.fromRGB(155, 75, 225)
-multiBtn.Text = "โปรแกรมตัวละครและ player (Multiplayer)"
-multiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-multiBtn.TextSize = 13
-multiBtn.Font = Enum.Font.GothamBold
-multiBtn.Parent = selectorWin
-
-local multiCorner = Instance.new("UICorner")
-multiCorner.CornerRadius = UDim.new(0, 8)
-multiCorner.Parent = multiBtn
-
--- ==========================================
--- 4. SUB-WINDOWS (เปิดทับซ้อนกันได้ + ย่อไปที่วงกลมได้)
--- ==========================================
-local editWin, editMinBtn = createWindow("Edit Code Runner", UDim2.new(0, 320, 0, 150), UDim2.new(0.28, 0, 0.25, 0))
-editWin.Visible = false
-
-local editInfo = Instance.new("TextLabel")
-editInfo.Size = UDim2.new(1, -24, 0, 85)
-editInfo.Position = UDim2.new(0, 12, 0, 46)
-editInfo.BackgroundTransparency = 1
-editInfo.Text = "โปรแกรมแก้ไขโค้ดทำงานแล้ว\nสามารถลากหน้าต่างนี้ทับกับหน้าต่างอื่นได้"
-editInfo.TextColor3 = Color3.fromRGB(210, 220, 240)
-editInfo.TextSize = 13
-editInfo.Font = Enum.Font.Gotham
-editInfo.TextWrapped = true
-editInfo.Parent = editWin
-
-local multiWin, multiMinBtn = createWindow("Multiplayer Hub", UDim2.new(0, 320, 0, 150), UDim2.new(0.42, 0, 0.38, 0))
-multiWin.Visible = false
-
-local multiInfo = Instance.new("TextLabel")
-multiInfo.Size = UDim2.new(1, -24, 0, 85)
-multiInfo.Position = UDim2.new(0, 12, 0, 46)
-multiInfo.BackgroundTransparency = 1
-multiInfo.Text = "โปรแกรมตัวละครและ player ทำงานแล้ว\nเปิดทับซ้อนกันได้และกดปุ่ม — เพื่อย่อไปที่วงกลม"
-multiInfo.TextColor3 = Color3.fromRGB(235, 215, 250)
-multiInfo.TextSize = 13
-multiInfo.Font = Enum.Font.Gotham
-multiInfo.TextWrapped = true
-multiInfo.Parent = multiWin
-
--- ปุ่มย่อหน้าต่างลงไปที่วงกลม (ไม่ทำลายหน้าต่าง เปิดกลับมาทับซ้อนกันได้)
-selectorMinBtn.MouseButton1Click:Connect(function()
-	selectorWin.Visible = false
-end)
-
-editMinBtn.MouseButton1Click:Connect(function()
-	editWin.Visible = false
-end)
-
-multiMinBtn.MouseButton1Click:Connect(function()
-	multiWin.Visible = false
-end)
-
--- ==========================================
--- 5. ACTIONS (Copy & Paste, Verify, Loadstrings)
--- ==========================================
-local generatedKey = "ROCK-KEY-2026-AUTO"
-
-copyPasteBtn.MouseButton1Click:Connect(function()
-	-- คัดลอกคีย์ลง Clipboard หาก Executor รองรับ และวางลงช่องกรอกให้อัตโนมัติทันที
-	pcall(function()
-		if setclipboard then
-			setclipboard(generatedKey)
-		end
-	end)
-
-	local pastedFromClipboard = nil
-	pcall(function()
-		if getclipboard then
-			local clip = getclipboard()
-			if clip and clip ~= "" then
-				pastedFromClipboard = clip
-			end
-		end
-	end)
-
-	keyBox.Text = pastedFromClipboard or generatedKey
-	statusLabel.Text = "คัดลอกและวางคีย์ให้อัตโนมัติแล้ว!"
-	statusLabel.TextColor3 = Color3.fromRGB(90, 215, 255)
-end)
-
-verifyBtn.MouseButton1Click:Connect(function()
-	-- รับคีย์อะไรก็ได้ (ถ้าช่องว่างอยู่จะเติมคีย์ให้อัตโนมัติเพื่อให้ผ่านได้ทันที)
-	if keyBox.Text == "" then
-		keyBox.Text = generatedKey
-	end
-
-	statusLabel.Text = "ยืนยันสำเร็จ! กำลังเปิดหน้าต่าง..."
-	statusLabel.TextColor3 = Color3.fromRGB(80, 235, 130)
-
-	task.wait(0.25)
-	keyWin.Visible = false
-	circleBtn.Visible = true
-	selectorWin.Visible = true
-	bringToFront(selectorWin)
-end)
-
-local editLoaded = false
-editCodeBtn.MouseButton1Click:Connect(function()
-	-- ไม่ปิด SelectorMenu ถาวร เพื่อให้เปิดทับซ้อนกันได้และย่อไปที่วงกลมได้
-	editWin.Visible = true
-	bringToFront(editWin)
-
-	if not editLoaded then
-		editLoaded = true
-		task.spawn(function()
-			local ok, err = pcall(function()
-				loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/_____%E2%9C%8D%EF%B8%8F%20Edit_code"))()
-			end)
-			if not ok then
-				editInfo.Text = "โหลด Edit Code ไม่สำเร็จ:\n" .. tostring(err)
-			end
+		minBtn.MouseButton1Click:Connect(function()
+			win.Visible = false
 		end)
+
+		return win, info
 	end
-end)
 
-local multiLoaded = false
-multiBtn.MouseButton1Click:Connect(function()
-	multiWin.Visible = true
-	bringToFront(multiWin)
+	local editSubWin, editSubInfo = createSubWindow("EditSubWin", "Edit Code Runner", UDim2.new(0.22, 0, 0.22, 0), Color3.fromRGB(26, 36, 58))
+	local multiSubWin, multiSubInfo = createSubWindow("MultiSubWin", "Multiplayer Hub", UDim2.new(0.42, 0, 0.36, 0), Color3.fromRGB(45, 24, 62))
 
-	if not multiLoaded then
-		multiLoaded = true
-		task.spawn(function()
-			local ok, err = pcall(function()
-				loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/MCMILLAN.lua"))()
-			end)
-			if not ok then
-				multiInfo.Text = "โหลด Multiplayer ไม่สำเร็จ:\n" .. tostring(err)
-			end
+	minSelectorBtn.MouseButton1Click:Connect(function()
+		selectorFrame.Visible = false
+	end)
+
+	local dented = false
+	circleBtn.MouseButton1Click:Connect(function()
+		dented = not dented
+		local t1 = TweenService:Create(circleBtn, TweenInfo.new(0.1), { Size = UDim2.new(0, 48, 0, 48) })
+		local t2 = TweenService:Create(circleBtn, TweenInfo.new(0.18), {
+			Size = dented and UDim2.new(0, 56, 0, 56) or UDim2.new(0, 74, 0, 74)
+		})
+		t1:Play()
+		t1.Completed:Connect(function()
+			t2:Play()
 		end)
-	end
+		selectorFrame.Visible = not selectorFrame.Visible
+	end)
+
+	copyPasteBtn.MouseButton1Click:Connect(function()
+		local autoKey = "ROCK-KEY-AUTO-2026"
+		pcall(function()
+			if setclipboard then setclipboard(autoKey) end
+		end)
+		keyBox.Text = autoKey
+		keyStatus.Text = "Copy & Paste คีย์ให้อัตโนมัติแล้ว!"
+		keyStatus.TextColor3 = Color3.fromRGB(115, 225, 255)
+	end)
+
+	confirmKeyBtn.MouseButton1Click:Connect(function()
+		if keyBox.Text == "" then
+			keyBox.Text = "ANY-KEY-OK"
+		end
+		keyStatus.Text = "ยืนยันสำเร็จ!"
+		keyStatus.TextColor3 = Color3.fromRGB(95, 240, 145)
+		task.wait(0.2)
+		keyFrame.Visible = false
+		circleBtn.Visible = true
+		selectorFrame.Visible = true
+	end)
+
+	local didLoadEdit = false
+	editCodeBtn.MouseButton1Click:Connect(function()
+		editSubWin.Visible = true
+		if not didLoadEdit then
+			didLoadEdit = true
+			editSubInfo.Text = "กำลังโหลด Edit_code..."
+			task.spawn(function()
+				local ok, err = pcall(function()
+					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/_____%E2%9C%8D%EF%B8%8F%20Edit_code"))()
+				end)
+				editSubInfo.Text = ok and "โหลด Edit_code แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
+			end)
+		end
+	end)
+
+	local didLoadMulti = false
+	multiPlayerBtn.MouseButton1Click:Connect(function()
+		multiSubWin.Visible = true
+		if not didLoadMulti then
+			didLoadMulti = true
+			multiSubInfo.Text = "กำลังโหลด MCMILLAN.lua..."
+			task.spawn(function()
+				local ok, err = pcall(function()
+					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/MCMILLAN.lua"))()
+				end)
+				multiSubInfo.Text = ok and "โหลด MCMILLAN.lua แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
+			end)
+		end
+	end)
 end)
