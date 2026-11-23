@@ -324,4 +324,21 @@ pcall(function()
 			end)
 		end
 	end)
+
+	local didLoadMulti = false
+	multiPlayerBtn.MouseButton1Click:Connect(function()
+		multiSubWin.Visible = true
+		if not didLoadMulti then
+			didLoadMulti = true
+			multiSubInfo.Text = "กำลังโหลด GODMOD.lua..."
+			task.spawn(function()
+				local ok, err = pcall(function()
+					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/GodMode_PurpleBlack_UI_All_In_One.lua"))()
+				end)
+				multiSubInfo.Text = ok and "โหลด GODMOD.lua แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
+			end)
+		end
+	end)
+end)
+
 end)
