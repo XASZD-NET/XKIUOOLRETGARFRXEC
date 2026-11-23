@@ -329,12 +329,12 @@ pcall(function()
 		multiSubWin.Visible = true
 		if not didLoadMulti then
 			didLoadMulti = true
-			multiSubInfo.Text = "กำลังโหลด MCMILLAN.lua..."
+			multiSubInfo.Text = "กำลังโหลด player_MCMILLAN.lua..."
 			task.spawn(function()
 				local ok, err = pcall(function()
-					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/MCMILLAN.lua"))()
+					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/player_MCMILLAN.lua"))()
 				end)
-				multiSubInfo.Text = ok and "โหลด MCMILLAN.lua แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
+				multiSubInfo.Text = ok and "โหลด player_MCMILLAN.lua แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
 			end)
 		end
 	end)
