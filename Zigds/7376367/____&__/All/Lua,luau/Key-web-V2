@@ -131,12 +131,12 @@ pcall(function()
 	end)
 
 	-- ==========================================
-	-- 3. หน้าต่างเลือกโหมด
+	-- 3. หน้าต่างเลือกโหมด (3 ปุ่ม)
 	-- ==========================================
 	local selectorFrame = Instance.new("Frame")
 	selectorFrame.Name = "SelectorFrame"
-	selectorFrame.Size = UDim2.new(0, 350, 0, 205)
-	selectorFrame.Position = UDim2.new(0.5, -175, 0.5, -102)
+	selectorFrame.Size = UDim2.new(0, 350, 0, 252)
+	selectorFrame.Position = UDim2.new(0.5, -175, 0.5, -126)
 	selectorFrame.BackgroundColor3 = Color3.fromRGB(22, 18, 42)
 	selectorFrame.BorderSizePixel = 0
 	selectorFrame.Active = true
@@ -150,10 +150,11 @@ pcall(function()
 	askTitle.Size = UDim2.new(1, -44, 0, 38)
 	askTitle.Position = UDim2.new(0, 10, 0, 4)
 	askTitle.BackgroundTransparency = 1
-	askTitle.Text = "คุณจะเอาอะไรระหว่างโปรแกรมแก้ไขโค้ด หรือโปรแกรมตัวละครและ player"
+	askTitle.Text = "เลือกโปรแกรมที่ต้องการรัน:"
 	askTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	askTitle.TextSize = 11
+	askTitle.TextSize = 12
 	askTitle.Font = Enum.Font.GothamBold
+	askTitle.TextXAlignment = Enum.TextXAlignment.Left
 	askTitle.TextWrapped = true
 	askTitle.ZIndex = 21
 	askTitle.Parent = selectorFrame
@@ -170,10 +171,10 @@ pcall(function()
 	Instance.new("UICorner", minSelectorBtn).CornerRadius = UDim.new(0, 6)
 
 	local editCodeBtn = Instance.new("TextButton")
-	editCodeBtn.Size = UDim2.new(1, -28, 0, 42)
-	editCodeBtn.Position = UDim2.new(0, 14, 0, 56)
+	editCodeBtn.Size = UDim2.new(1, -28, 0, 40)
+	editCodeBtn.Position = UDim2.new(0, 14, 0, 50)
 	editCodeBtn.BackgroundColor3 = Color3.fromRGB(65, 120, 240)
-	editCodeBtn.Text = "โปรแกรมแก้ไขโค้ด (Edit Code)"
+	editCodeBtn.Text = "1. โปรแกรมแก้ไขโค้ด (Edit Code)"
 	editCodeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	editCodeBtn.TextSize = 13
 	editCodeBtn.Font = Enum.Font.GothamBold
@@ -182,16 +183,28 @@ pcall(function()
 	Instance.new("UICorner", editCodeBtn).CornerRadius = UDim.new(0, 8)
 
 	local multiPlayerBtn = Instance.new("TextButton")
-	multiPlayerBtn.Size = UDim2.new(1, -28, 0, 42)
-	multiPlayerBtn.Position = UDim2.new(0, 14, 0, 110)
+	multiPlayerBtn.Size = UDim2.new(1, -28, 0, 40)
+	multiPlayerBtn.Position = UDim2.new(0, 14, 0, 100)
 	multiPlayerBtn.BackgroundColor3 = Color3.fromRGB(155, 75, 225)
-	multiPlayerBtn.Text = "โปรแกรมตัวละครและ player (Multiplayer)"
+	multiPlayerBtn.Text = "2. โปรแกรมตัวละครและ player (MCMILLAN)"
 	multiPlayerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	multiPlayerBtn.TextSize = 13
 	multiPlayerBtn.Font = Enum.Font.GothamBold
 	multiPlayerBtn.ZIndex = 21
 	multiPlayerBtn.Parent = selectorFrame
 	Instance.new("UICorner", multiPlayerBtn).CornerRadius = UDim.new(0, 8)
+
+	local godModeBtn = Instance.new("TextButton")
+	godModeBtn.Size = UDim2.new(1, -28, 0, 40)
+	godModeBtn.Position = UDim2.new(0, 14, 0, 150)
+	godModeBtn.BackgroundColor3 = Color3.fromRGB(190, 55, 145)
+	godModeBtn.Text = "3. GODMOD"
+	godModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	godModeBtn.TextSize = 13
+	godModeBtn.Font = Enum.Font.GothamBold
+	godModeBtn.ZIndex = 21
+	godModeBtn.Parent = selectorFrame
+	Instance.new("UICorner", godModeBtn).CornerRadius = UDim.new(0, 8)
 
 	-- ==========================================
 	-- 4. หน้าต่างย่อยที่เปิดทับซ้อนกันได้
@@ -252,8 +265,9 @@ pcall(function()
 		return win, info
 	end
 
-	local editSubWin, editSubInfo = createSubWindow("EditSubWin", "Edit Code Runner", UDim2.new(0.22, 0, 0.22, 0), Color3.fromRGB(26, 36, 58))
-	local multiSubWin, multiSubInfo = createSubWindow("MultiSubWin", "Multiplayer Hub", UDim2.new(0.42, 0, 0.36, 0), Color3.fromRGB(45, 24, 62))
+	local editSubWin, editSubInfo = createSubWindow("EditSubWin", "Edit Code Runner", UDim2.new(0.20, 0, 0.20, 0), Color3.fromRGB(26, 36, 58))
+	local multiSubWin, multiSubInfo = createSubWindow("MultiSubWin", "MCMILLAN Hub", UDim2.new(0.38, 0, 0.34, 0), Color3.fromRGB(45, 24, 62))
+	local godSubWin, godSubInfo = createSubWindow("GodSubWin", "GODMOD Hub", UDim2.new(0.55, 0, 0.48, 0), Color3.fromRGB(58, 20, 52))
 
 	minSelectorBtn.MouseButton1Click:Connect(function()
 		selectorFrame.Visible = false
@@ -325,20 +339,18 @@ pcall(function()
 		end
 	end)
 
-	local didLoadMulti = false
-	multiPlayerBtn.MouseButton1Click:Connect(function()
-		multiSubWin.Visible = true
-		if not didLoadMulti then
-			didLoadMulti = true
-			multiSubInfo.Text = "กำลังโหลด GODMOD.lua..."
+	local didLoadGod = false
+	godModeBtn.MouseButton1Click:Connect(function()
+		godSubWin.Visible = true
+		if not didLoadGod then
+			didLoadGod = true
+			godSubInfo.Text = "กำลังโหลด GODMOD.lua..."
 			task.spawn(function()
 				local ok, err = pcall(function()
 					loadstring(game:HttpGet("https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/GodMode_PurpleBlack_UI_All_In_One.lua"))()
 				end)
-				multiSubInfo.Text = ok and "โหลด GODMOD.lua แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
+				godSubInfo.Text = ok and "โหลด GODMOD.lua แล้ว!" or ("โหลดไม่สำเร็จ: " .. tostring(err))
 			end)
 		end
 	end)
-end)
-
 end)
