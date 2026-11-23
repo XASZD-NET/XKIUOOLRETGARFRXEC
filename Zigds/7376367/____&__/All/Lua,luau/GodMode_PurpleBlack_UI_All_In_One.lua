@@ -1,16 +1,17 @@
 -- =========================================================================
 -- ชื่อไฟล์: GodMode_PurpleBlack_UI_All_In_One.lua
 -- ตำแหน่งติดตั้ง: ServerScriptService (Script เดียวจบ ครบทั้งระบบ + UI)
--- รายละเอียด: 
+-- รายละเอียด:
 --   1. ระบบอมตะ เลือดสูงสุด 9,000,000 + กันดาเมจทุกชนิด + กันตกแมพ (Anti-Void)
 --   2. หน้าต่าง UI โทนดำ-ม่วง (Purple-Black) ตัวหนังสือสีขาวล้วน คมชัด
---   3. มีปุ่มย่อ/ขยายหน้าต่าง (Minimize), ปุ่มลอยเปิดหน้าต่าง, สวิตช์เปิด-ปิดโหมดต่างๆ
---      และปุ่มกดวาร์ปกลับจุดปลอดภัยด้วยตัวเอง
+--   3. ลากย้ายได้ทั้งหน้าต่างหลักและปุ่มลอย มีปุ่มย่อ/ขยาย, ตั้งจุดปลอดภัยใหม่
+--      และวาร์ปกลับจุดปลอดภัยด้วยตัวเอง พร้อมแสดงข้อมูลตำแหน่งและสถานะละเอียด
 -- =========================================================================
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 -- ==================== ตั้งค่าหลัก (ปรับแต่งได้ตรงนี้) ====================
 local CONFIG = {
@@ -18,7 +19,7 @@ local CONFIG = {
 	VOID_Y = -200,               -- ความลึกที่ถือว่าตกแมพ (จะดึงกลับจุดปลอดภัยอัตโนมัติ)
 	SAFE_OFFSET = Vector3.new(0, 4, 0),
 	TWEEN_SPEED = 0.2,
-	
+
 	-- โทนสี UI (ดำ-ม่วง + ตัวหนังสือสีขาว)
 	THEME = {
 		BgDark = Color3.fromRGB(10, 8, 15),          -- ดำอมม่วงเข้ม (พื้นหลังหลัก)
@@ -29,6 +30,7 @@ local CONFIG = {
 		PurpleBorder = Color3.fromRGB(145, 70, 255), -- สีเส้นขอบเรืองแสง
 		ToggleOff = Color3.fromRGB(36, 28, 52),      -- สีปุ่มตอนปิด
 		TextWhite = Color3.fromRGB(255, 255, 255),   -- ตัวหนังสือสีขาวล้วน
+		TextSub = Color3.fromRGB(205, 185, 240),     -- สีตัวหนังสือรายละเอียดรอง
 	}
 }
 
@@ -39,6 +41,64 @@ local function formatNumber(n)
 	local s = tostring(math.abs(num))
 	local r = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
 	return sign .. (r:gsub("^,", ""))
+end
+
+local function formatPos(cf)
+	if not cf then return "0, 0, 0" end
+	local p = cf.Position
+	return string.format("%d, %d, %d", math.floor(p.X), math.floor(p.Y), math.floor(p.Z))
+end
+
+-- ตัวช่วยลาก UI ที่รองรับทั้งทัชสกรีนและเมาส์ พร้อมแยกการคลิก
+local function attachDrag(targetGui, handleGui, onReleaseMoved)
+	local dragging = false
+	local activeInput = nil
+	local dragStart = Vector2.zero
+	local startPos = targetGui.Position
+	local moved = false
+
+	handleGui.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			activeInput = input
+			dragStart = input.Position
+			startPos = targetGui.Position
+			moved = false
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End and activeInput == input then
+					dragging = false
+					activeInput = nil
+					if onReleaseMoved then
+						onReleaseMoved(moved)
+					end
+				end
+			end)
+		end
+	end)
+
+	handleGui.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			if dragging and activeInput == nil then
+				activeInput = input
+			end
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input == activeInput then
+			local delta = input.Position - dragStart
+			if delta.Magnitude > 6 then
+				moved = true
+			end
+			targetGui.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
 end
 
 -- ==================== สร้างหน้าต่าง UI (ดำ-ม่วง ตัวหนังสือขาว) ====================
@@ -56,18 +116,19 @@ local function createPurpleBlackUI(player)
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = playerGui
 
-	-- ปุ่มลอยวงกลม (แสดงตอนย่อหน้าต่าง UI เก็บไว้)
+	-- ปุ่มลอยวงกลม (ลากได้ + แสดงตอนย่อหน้าต่าง UI เก็บไว้)
 	local floatingBtn = Instance.new("TextButton")
 	floatingBtn.Name = "FloatingOpenButton"
-	floatingBtn.Size = UDim2.new(0, 48, 0, 48)
+	floatingBtn.Size = UDim2.new(0, 50, 0, 50)
 	floatingBtn.Position = UDim2.new(0, 16, 0, 24)
 	floatingBtn.BackgroundColor3 = CONFIG.THEME.BgDark
-	floatingBtn.Text = "UI"
+	floatingBtn.Text = "GOD"
 	floatingBtn.Font = Enum.Font.GothamBlack
-	floatingBtn.TextSize = 15
+	floatingBtn.TextSize = 13
 	floatingBtn.TextColor3 = CONFIG.THEME.TextWhite
 	floatingBtn.Visible = false
 	floatingBtn.AutoButtonColor = true
+	floatingBtn.Active = true
 	floatingBtn.Parent = screenGui
 	Instance.new("UICorner", floatingBtn).CornerRadius = UDim.new(1, 0)
 
@@ -79,11 +140,12 @@ local function createPurpleBlackUI(player)
 	-- หน้าต่างหลัก (Main Window)
 	local mainWindow = Instance.new("Frame")
 	mainWindow.Name = "MainWindow"
-	mainWindow.Size = UDim2.new(0, 320, 0, 275)
+	mainWindow.Size = UDim2.new(0, 330, 0, 326)
 	mainWindow.Position = UDim2.new(0, 16, 0, 24)
 	mainWindow.BackgroundColor3 = CONFIG.THEME.BgDark
 	mainWindow.BorderSizePixel = 0
 	mainWindow.ClipsDescendants = true
+	mainWindow.Active = true
 	mainWindow.Parent = screenGui
 	Instance.new("UICorner", mainWindow).CornerRadius = UDim.new(0, 14)
 
@@ -102,12 +164,13 @@ local function createPurpleBlackUI(player)
 	})
 	bgGradient.Parent = mainWindow
 
-	-- แถบหัวข้อด้านบน (Top Header - สามารถลากย้ายหน้าต่างได้)
+	-- แถบหัวข้อด้านบน (Top Header - ลากย้ายหน้าต่างได้)
 	local header = Instance.new("Frame")
 	header.Name = "Header"
 	header.Size = UDim2.new(1, 0, 0, 40)
 	header.BackgroundColor3 = CONFIG.THEME.BgHeader
 	header.BorderSizePixel = 0
+	header.Active = true
 	header.Parent = mainWindow
 
 	local headerLine = Instance.new("Frame")
@@ -128,7 +191,7 @@ local function createPurpleBlackUI(player)
 	titleLabel.TextSize = 14
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.TextColor3 = CONFIG.THEME.TextWhite
-	titleLabel.Text = "GOD MODE • PURPLE PANEL"
+	titleLabel.Text = "GOD MODE • PURPLE PANEL PRO"
 	titleLabel.Parent = header
 
 	-- ปุ่มย่อหน้าต่าง (-)
@@ -152,10 +215,10 @@ local function createPurpleBlackUI(player)
 	content.Size = UDim2.new(1, -24, 1, -56)
 	content.Parent = mainWindow
 
-	-- กล่องแสดงแถบพลังชีวิต (Health Card)
+	-- กล่องแสดงแถบพลังชีวิตและรายละเอียดพิกัด (Health & Telemetry Card)
 	local hpCard = Instance.new("Frame")
 	hpCard.Name = "HealthCard"
-	hpCard.Size = UDim2.new(1, 0, 0, 68)
+	hpCard.Size = UDim2.new(1, 0, 0, 84)
 	hpCard.Position = UDim2.new(0, 0, 0, 0)
 	hpCard.BackgroundColor3 = CONFIG.THEME.BgCard
 	hpCard.BorderSizePixel = 0
@@ -170,22 +233,22 @@ local function createPurpleBlackUI(player)
 
 	local hpHeaderText = Instance.new("TextLabel")
 	hpHeaderText.BackgroundTransparency = 1
-	hpHeaderText.Position = UDim2.new(0, 10, 0, 6)
-	hpHeaderText.Size = UDim2.new(0.5, 0, 0, 18)
+	hpHeaderText.Position = UDim2.new(0, 10, 0, 5)
+	hpHeaderText.Size = UDim2.new(0.55, 0, 0, 16)
 	hpHeaderText.Font = Enum.Font.GothamBold
-	hpHeaderText.TextSize = 12
+	hpHeaderText.TextSize = 11
 	hpHeaderText.TextXAlignment = Enum.TextXAlignment.Left
 	hpHeaderText.TextColor3 = CONFIG.THEME.TextWhite
-	hpHeaderText.Text = "HEALTH STATUS"
+	hpHeaderText.Text = "HEALTH & SHIELD STATUS"
 	hpHeaderText.Parent = hpCard
 
 	local hpPercentText = Instance.new("TextLabel")
 	hpPercentText.Name = "PercentLabel"
 	hpPercentText.BackgroundTransparency = 1
-	hpPercentText.Position = UDim2.new(0.5, 0, 0, 6)
-	hpPercentText.Size = UDim2.new(0.5, -10, 0, 18)
+	hpPercentText.Position = UDim2.new(0.55, 0, 0, 5)
+	hpPercentText.Size = UDim2.new(0.45, -10, 0, 16)
 	hpPercentText.Font = Enum.Font.GothamBold
-	hpPercentText.TextSize = 12
+	hpPercentText.TextSize = 11
 	hpPercentText.TextXAlignment = Enum.TextXAlignment.Right
 	hpPercentText.TextColor3 = CONFIG.THEME.TextWhite
 	hpPercentText.Text = "100%"
@@ -193,8 +256,8 @@ local function createPurpleBlackUI(player)
 
 	local barBack = Instance.new("Frame")
 	barBack.Name = "BarBack"
-	barBack.Position = UDim2.new(0, 10, 0, 28)
-	barBack.Size = UDim2.new(1, -20, 0, 30)
+	barBack.Position = UDim2.new(0, 10, 0, 24)
+	barBack.Size = UDim2.new(1, -20, 0, 28)
 	barBack.BackgroundColor3 = CONFIG.THEME.BgDark
 	barBack.BorderSizePixel = 0
 	barBack.ClipsDescendants = true
@@ -221,16 +284,29 @@ local function createPurpleBlackUI(player)
 	hpValueLabel.BackgroundTransparency = 1
 	hpValueLabel.Size = UDim2.new(1, 0, 1, 0)
 	hpValueLabel.Font = Enum.Font.GothamBold
-	hpValueLabel.TextSize = 13
+	hpValueLabel.TextSize = 12
 	hpValueLabel.TextColor3 = CONFIG.THEME.TextWhite
 	hpValueLabel.ZIndex = 3
 	hpValueLabel.Text = formatNumber(CONFIG.MAX_HP) .. " / " .. formatNumber(CONFIG.MAX_HP)
 	hpValueLabel.Parent = barBack
 
+	local coordLabel = Instance.new("TextLabel")
+	coordLabel.Name = "CoordLabel"
+	coordLabel.BackgroundTransparency = 1
+	coordLabel.Position = UDim2.new(0, 10, 0, 56)
+	coordLabel.Size = UDim2.new(1, -20, 0, 20)
+	coordLabel.Font = Enum.Font.Code
+	coordLabel.TextSize = 10
+	coordLabel.TextXAlignment = Enum.TextXAlignment.Left
+	coordLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	coordLabel.TextColor3 = CONFIG.THEME.TextSub
+	coordLabel.Text = "POS: 0, 0, 0 | SAFE: 0, 0, 0"
+	coordLabel.Parent = hpCard
+
 	-- ฟังก์ชันตัวช่วยสร้างแถวสวิตช์เปิด-ปิด (Toggle Row)
 	local function createToggleRow(titleText, yPos, defaultState)
 		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, 0, 0, 42)
+		row.Size = UDim2.new(1, 0, 0, 40)
 		row.Position = UDim2.new(0, 0, 0, yPos)
 		row.BackgroundColor3 = CONFIG.THEME.BgCard
 		row.BorderSizePixel = 0
@@ -248,7 +324,7 @@ local function createPurpleBlackUI(player)
 		lbl.Position = UDim2.new(0, 12, 0, 0)
 		lbl.Size = UDim2.new(1, -85, 1, 0)
 		lbl.Font = Enum.Font.GothamBold
-		lbl.TextSize = 13
+		lbl.TextSize = 12
 		lbl.TextXAlignment = Enum.TextXAlignment.Left
 		lbl.TextColor3 = CONFIG.THEME.TextWhite
 		lbl.Text = titleText
@@ -268,20 +344,35 @@ local function createPurpleBlackUI(player)
 		return btn
 	end
 
-	-- สร้างปุ่มควบคุมฟังก์ชันในหน้าต่าง UI
-	local godModeBtn = createToggleRow("โหมดอมตะ (God Mode)", 76, true)
-	local antiVoidBtn = createToggleRow("กันตกแมพ (Anti-Void)", 124, true)
+	-- สวิตช์ควบคุมฟังก์ชัน
+	local godModeBtn = createToggleRow("โหมดอมตะ (God Mode)", 92, true)
+	local antiVoidBtn = createToggleRow("กันตกแมพ (Anti-Void)", 138, true)
 
-	-- ปุ่มวาร์ปกลับจุดปลอดภัยด้วยตัวเอง (Manual Safe Teleport)
+	-- แถวปุ่มบันทึกจุดปลอดภัยใหม่ + วาร์ปกลับจุดปลอดภัย
+	local setSafeBtn = Instance.new("TextButton")
+	setSafeBtn.Name = "SetSafeButton"
+	setSafeBtn.Size = UDim2.new(0.42, -4, 0, 38)
+	setSafeBtn.Position = UDim2.new(0, 0, 0, 186)
+	setSafeBtn.BackgroundColor3 = CONFIG.THEME.BgCard
+	setSafeBtn.Font = Enum.Font.GothamBold
+	setSafeBtn.TextSize = 12
+	setSafeBtn.TextColor3 = CONFIG.THEME.TextWhite
+	setSafeBtn.Text = "📍 ปักจุดปลอดภัย"
+	setSafeBtn.Parent = content
+	Instance.new("UICorner", setSafeBtn).CornerRadius = UDim.new(0, 10)
+	local setSafeStroke = Instance.new("UIStroke", setSafeBtn)
+	setSafeStroke.Color = CONFIG.THEME.PurpleBorder
+	setSafeStroke.Thickness = 1
+
 	local safeTpBtn = Instance.new("TextButton")
 	safeTpBtn.Name = "SafeTeleportButton"
-	safeTpBtn.Size = UDim2.new(1, 0, 0, 38)
-	safeTpBtn.Position = UDim2.new(0, 0, 0, 172)
+	safeTpBtn.Size = UDim2.new(0.58, -4, 0, 38)
+	safeTpBtn.Position = UDim2.new(0.42, 4, 0, 186)
 	safeTpBtn.BackgroundColor3 = CONFIG.THEME.PurpleMain
 	safeTpBtn.Font = Enum.Font.GothamBlack
-	safeTpBtn.TextSize = 13
+	safeTpBtn.TextSize = 12
 	safeTpBtn.TextColor3 = CONFIG.THEME.TextWhite
-	safeTpBtn.Text = "วาร์ปกลับจุดปลอดภัย (Safe Point)"
+	safeTpBtn.Text = "⚡ วาร์ปกลับจุดปลอดภัย"
 	safeTpBtn.Parent = content
 	Instance.new("UICorner", safeTpBtn).CornerRadius = UDim.new(0, 10)
 
@@ -292,50 +383,29 @@ local function createPurpleBlackUI(player)
 	})
 	tpGrad.Parent = safeTpBtn
 
+	-- ลากได้ทั้งหน้าต่างหลัก (ผ่าน Header) และปุ่มลอย
+	attachDrag(mainWindow, header, nil)
+
+	local floatWasDragged = false
+	attachDrag(floatingBtn, floatingBtn, function(didMove)
+		floatWasDragged = didMove
+		task.delay(0.05, function()
+			floatWasDragged = false
+		end)
+	end)
+
 	-- ระบบย่อ/ขยายหน้าต่าง UI
 	minimizeBtn.MouseButton1Click:Connect(function()
+		floatingBtn.Position = mainWindow.Position
 		mainWindow.Visible = false
 		floatingBtn.Visible = true
 	end)
 
 	floatingBtn.MouseButton1Click:Connect(function()
-		floatingBtn.Visible = false
-		mainWindow.Visible = true
-	end)
-
-	-- ระบบลากย้ายหน้าต่าง UI (รองรับทั้งเมาส์และหน้าจอสัมผัสมือถือ)
-	local dragging = false
-	local dragInput, dragStart, startPos
-
-	header.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = mainWindow.Position
-
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	header.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			mainWindow.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
+		if not floatWasDragged then
+			mainWindow.Position = floatingBtn.Position
+			floatingBtn.Visible = false
+			mainWindow.Visible = true
 		end
 	end)
 
@@ -344,8 +414,10 @@ local function createPurpleBlackUI(player)
 		barFill = barFill,
 		hpValueLabel = hpValueLabel,
 		hpPercentText = hpPercentText,
+		coordLabel = coordLabel,
 		godModeBtn = godModeBtn,
 		antiVoidBtn = antiVoidBtn,
+		setSafeBtn = setSafeBtn,
 		safeTpBtn = safeTpBtn,
 	}
 end
@@ -354,7 +426,6 @@ end
 local function onPlayerAdded(player)
 	local ui = createPurpleBlackUI(player)
 
-	-- สถานะเปิด/ปิดของแต่ละระบบประจำตัวผู้เล่น
 	local state = {
 		godMode = true,
 		antiVoid = true,
@@ -364,6 +435,13 @@ local function onPlayerAdded(player)
 	local currentHumanoid = nil
 	local currentRoot = nil
 	local safeCFrame = nil
+
+	local function refreshCoords()
+		if not ui or not ui.gui.Parent then return end
+		local curStr = currentRoot and currentRoot.Parent and formatPos(currentRoot.CFrame) or "N/A"
+		local safeStr = safeCFrame and formatPos(safeCFrame) or "N/A"
+		ui.coordLabel.Text = "POS: " .. curStr .. " | SAFE: " .. safeStr
+	end
 
 	local function updateToggleVisual(button, isOn)
 		button.Text = isOn and "ON" or "OFF"
@@ -379,6 +457,7 @@ local function onPlayerAdded(player)
 		currentHumanoid = humanoid
 		currentRoot = root
 		safeCFrame = root.CFrame + CONFIG.SAFE_OFFSET
+		refreshCoords()
 
 		local connections = {}
 		local isActive = true
@@ -460,13 +539,11 @@ local function onPlayerAdded(player)
 			end
 		end
 
-		-- ตั้งค่าเริ่มต้นเมื่อเกิดตัวละคร
 		if state.godMode then
 			applyGodStats()
 		end
 		updateHealthBar(true)
 
-		-- ดักจับการเปลี่ยนแปลงเลือด
 		table.insert(connections, humanoid.HealthChanged:Connect(function(hp)
 			if not isActive or isHealing then return end
 			if state.godMode and hp < CONFIG.MAX_HP then
@@ -475,7 +552,6 @@ local function onPlayerAdded(player)
 			updateHealthBar(false)
 		end))
 
-		-- ดักจับการเปลี่ยนแปลง MaxHealth
 		table.insert(connections, humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(function()
 			if not isActive or isHealing then return end
 			if state.godMode and humanoid.MaxHealth ~= CONFIG.MAX_HP then
@@ -484,7 +560,6 @@ local function onPlayerAdded(player)
 			updateHealthBar(false)
 		end))
 
-		-- กันตายฉุกเฉินเมื่อเปิดโหมดอมตะ
 		table.insert(connections, humanoid.Died:Connect(function()
 			if not isActive or not state.godMode then return end
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
@@ -492,7 +567,6 @@ local function onPlayerAdded(player)
 			updateHealthBar(true)
 		end))
 
-		-- อัปเดตสถานะเมื่อกดปุ่มใน UI
 		local godClickConn = ui.godModeBtn.MouseButton1Click:Connect(function()
 			if not isActive then return end
 			if state.godMode then
@@ -512,7 +586,7 @@ local function onPlayerAdded(player)
 		end))
 		table.insert(connections, character.Destroying:Connect(cleanup))
 
-		-- ลูปกันตกแมพ + บันทึกจุดปลอดภัยล่าสุด
+		-- ลูปกันตกแมพ + อัปเดตพิกัด + บันทึกจุดปลอดภัยอัตโนมัติเมื่อยืนพื้นนิ่ง
 		task.spawn(function()
 			while isActive and character.Parent and humanoid.Parent and root.Parent do
 				if state.antiVoid and root.Position.Y < CONFIG.VOID_Y then
@@ -526,6 +600,7 @@ local function onPlayerAdded(player)
 				elseif humanoid.FloorMaterial ~= Enum.Material.Air and root.AssemblyLinearVelocity.Magnitude < 25 then
 					safeCFrame = root.CFrame + CONFIG.SAFE_OFFSET
 				end
+				refreshCoords()
 				task.wait(0.2)
 			end
 		end)
@@ -542,11 +617,19 @@ local function onPlayerAdded(player)
 		updateToggleVisual(ui.antiVoidBtn, state.antiVoid)
 	end)
 
+	ui.setSafeBtn.MouseButton1Click:Connect(function()
+		if currentRoot and currentRoot.Parent then
+			safeCFrame = currentRoot.CFrame + CONFIG.SAFE_OFFSET
+			refreshCoords()
+		end
+	end)
+
 	ui.safeTpBtn.MouseButton1Click:Connect(function()
 		if currentRoot and currentRoot.Parent and safeCFrame then
 			currentRoot.AssemblyLinearVelocity = Vector3.zero
 			currentRoot.AssemblyAngularVelocity = Vector3.zero
 			currentRoot.CFrame = safeCFrame
+			refreshCoords()
 		end
 	end)
 
