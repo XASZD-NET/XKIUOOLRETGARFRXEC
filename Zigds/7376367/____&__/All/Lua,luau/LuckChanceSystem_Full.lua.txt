@@ -1,0 +1,787 @@
+-- ============================================================================
+-- LUCK & CHANCE SYSTEM CONTROLLER (FULL COMPLETE EDITION)
+-- ============================================================================
+-- Feature Overview:
+--   1. Position: Top-Left offset (X = 18px, Y = 22px) + Free Header Dragging
+--   2. Cap: Maximum 9,000,000 (9 ล้าน) for both Luck and Chance
+--   3. Controls: Independent On/Off Toggle, Direct Numeric Input, Precision Slider,
+--                Quick Preset Buttons (+100K, +1M, 50%, MAX 9M), Enable All, Reset
+--   4. Theme: Detailed Dark Purple Aesthetic (Gradients, Glowing Strokes, Micro-Animations)
+--   5. Draggable Watermark Circle: Floating circular badge with rotating ring,
+--                                  live status readout, and quick hide/show toggle
+--   6. Integration Ready: Player Attributes + Optional RemoteEvent / Leaderstats Hook
+-- ============================================================================
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ป้องกันการสร้าง GUI ซ้ำซ้อนหากรันสคริปต์ใหม่
+local EXISTING_GUI = playerGui:FindFirstChild("DarkPurpleLuckChanceGUI_Full")
+if EXISTING_GUI then
+	EXISTING_GUI:Destroy()
+end
+
+-- ============================================================================
+-- 1. CONFIGURATION & CONSTANTS
+-- ============================================================================
+local CONFIG = {
+	MaxValue         = 9000000, -- เพดานสูงสุด 9 ล้าน
+	SliderStep       = 50000,   -- ความละเอียดในการลาก Slider (ทีละ 50,000)
+	InitialPos       = UDim2.new(0, 18, 0, 22), -- ด้านซ้ายบนเล็กน้อย
+	PanelWidth       = 330,
+	PanelHeight      = 450,
+	WatermarkSize    = 88,
+	WatermarkText    = "LUCK 9M",
+	WatermarkSubText = "DRAG ME",
+	RemoteEventName  = "UpdateLuckChanceEvent", -- ชื่อ RemoteEvent (ถ้ามีใน ReplicatedStorage)
+}
+
+-- ชุดสีธีมดำ-ม่วงแบบละเอียด (Detailed Dark Purple Palette)
+local THEME = {
+	BgDeep        = Color3.fromRGB(11, 8, 18),     -- ดำอมม่วงลึกสุด
+	BgMain        = Color3.fromRGB(17, 12, 28),    -- พื้นหลังหลัก
+	BgCard        = Color3.fromRGB(25, 18, 42),    -- พื้นหลังการ์ดโมดูล
+	BgInput       = Color3.fromRGB(36, 25, 60),    -- ช่องกรอกและปุ่มย่อย
+	BgHover       = Color3.fromRGB(50, 35, 82),    -- สีเมื่อชี้เมาส์
+	PurpleCore    = Color3.fromRGB(132, 42, 224),  -- ม่วงหลัก
+	PurpleNeon    = Color3.fromRGB(182, 108, 255), -- ม่วงนีออนไฮไลต์
+	PurpleDeep    = Color3.fromRGB(78, 24, 145),   -- ม่วงเข้มเงา
+	BorderMuted   = Color3.fromRGB(85, 45, 145),   -- ขอบปกติ
+	BorderActive  = Color3.fromRGB(175, 95, 255),  -- ขอบเมื่อเปิดใช้งาน
+	TextWhite     = Color3.fromRGB(246, 242, 255), -- ขาวอมม่วง
+	TextSub       = Color3.fromRGB(170, 155, 200), -- เทาอมม่วง
+	TextDim       = Color3.fromRGB(120, 105, 150), -- ข้อความรอง
+	StatusOn      = Color3.fromRGB(85, 230, 155),  -- เขียวมิ้นต์สถานะเปิด
+	StatusOff     = Color3.fromRGB(235, 85, 120),  -- ชมพูแดงสถานะปิด
+}
+
+-- สถานะการทำงานทั้งหมด
+local State = {
+	LuckEnabled   = false,
+	ChanceEnabled = false,
+	LuckValue     = 0,
+	ChanceValue   = 0,
+	Minimized     = false,
+	PanelVisible  = true,
+}
+
+-- ============================================================================
+-- 2. UTILITY FUNCTIONS & GAME SYNC ENGINE
+-- ============================================================================
+local function clampValue(v)
+	local num = tonumber(v) or 0
+	return math.clamp(math.floor(num + 0.5), 0, CONFIG.MaxValue)
+end
+
+local function formatNumber(n)
+	n = clampValue(n)
+	local str = tostring(n)
+	while true do
+		local k
+		str, k = string.gsub(str, "^(-?%d+)(%d%d%d)", "%1,%2")
+		if k == 0 then break end
+	end
+	return str
+end
+
+local function formatCompact(n)
+	n = clampValue(n)
+	if n >= 1000000 then
+		return string.format("%.2fM", n / 1000000)
+	elseif n >= 1000 then
+		return string.format("%.0fK", n / 1000)
+	end
+	return tostring(n)
+end
+
+-- ฟังก์ชันซิงค์ค่าโชคลาภและโอกาสเข้ากับตัวผู้เล่นและระบบเกม
+local function applyStatsToPlayer()
+	local activeLuck = State.LuckEnabled and State.LuckValue or 0
+	local activeChance = State.ChanceEnabled and State.ChanceValue or 0
+
+	-- 1) บันทึกเป็น Attributes บน Instance ของ Player (เรียกใช้ได้จากทุกสคริปต์)
+	player:SetAttribute("LuckBoostEnabled", State.LuckEnabled)
+	player:SetAttribute("LuckBoostValue", activeLuck)
+	player:SetAttribute("ChanceBoostEnabled", State.ChanceEnabled)
+	player:SetAttribute("ChanceBoostValue", activeChance)
+
+	-- 2) หากมี Folder ชื่อ leaderstats หรือ Stats ที่มีค่า Luck / Chance จะอัปเดตให้ด้วย (ฝั่ง Client Preview)
+	local statsFolder = player:FindFirstChild("leaderstats") or player:FindFirstChild("Stats")
+	if statsFolder then
+		local luckObj = statsFolder:FindFirstChild("Luck")
+		if luckObj and (luckObj:IsA("IntValue") or luckObj:IsA("NumberValue")) then
+			luckObj.Value = activeLuck
+		end
+		local chanceObj = statsFolder:FindFirstChild("Chance")
+		if chanceObj and (chanceObj:IsA("IntValue") or chanceObj:IsA("NumberValue")) then
+			chanceObj.Value = activeChance
+		end
+	end
+
+	-- 3) ส่งข้อมูลผ่าน RemoteEvent หากเซิร์ฟเวอร์มีรองรับ
+	local remote = ReplicatedStorage:FindFirstChild(CONFIG.RemoteEventName)
+	if remote and remote:IsA("RemoteEvent") then
+		remote:FireServer({
+			LuckEnabled = State.LuckEnabled,
+			LuckValue = activeLuck,
+			ChanceEnabled = State.ChanceEnabled,
+			ChanceValue = activeChance,
+		})
+	end
+end
+
+-- ============================================================================
+-- 3. UI BUILDER HELPERS
+-- ============================================================================
+local function addCorner(parent, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius)
+	c.Parent = parent
+	return c
+end
+
+local function addStroke(parent, color, thickness, transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color or THEME.BorderMuted
+	s.Thickness = thickness or 1.2
+	s.Transparency = transparency or 0.3
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = parent
+	return s
+end
+
+local function tween(obj, duration, props)
+	local t = TweenService:Create(obj, TweenInfo.new(duration, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props)
+	t:Play()
+	return t
+end
+
+-- ระบบลากอิสระ (รองรับทั้ง Mouse และ Touch Screen)
+local function makeDraggable(dragHandle, targetFrame, onDragStart, onDragEnd)
+	local dragging = false
+	local dragStart, startPos
+
+	dragHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = targetFrame.Position
+			if onDragStart then onDragStart() end
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			targetFrame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			if dragging then
+				dragging = false
+				if onDragEnd then onDragEnd() end
+			end
+		end
+	end)
+end
+
+-- ============================================================================
+-- 4. MAIN SCREEN GUI & ROOT PANEL (ด้านซ้ายบนเล็กน้อย)
+-- ============================================================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DarkPurpleLuckChanceGUI_Full"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.IgnoreGuiInset = false
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainControlPanel"
+mainFrame.Size = UDim2.new(0, CONFIG.PanelWidth, 0, CONFIG.PanelHeight)
+mainFrame.Position = CONFIG.InitialPos
+mainFrame.BackgroundColor3 = THEME.BgMain
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+addCorner(mainFrame, 16)
+
+local mainStroke = addStroke(mainFrame, THEME.BorderActive, 1.6, 0.25)
+
+local mainBgGradient = Instance.new("UIGradient")
+mainBgGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 16, 46)),
+	ColorSequenceKeypoint.new(0.45, Color3.fromRGB(16, 11, 27)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 13, 36)),
+})
+mainBgGradient.Rotation = 135
+mainBgGradient.Parent = mainFrame
+
+-- แถบเรืองแสงด้านบนสุดของหน้าต่าง
+local topAccentBar = Instance.new("Frame")
+topAccentBar.Size = UDim2.new(0.55, 0, 0, 2)
+topAccentBar.Position = UDim2.new(0.225, 0, 0, 0)
+topAccentBar.BackgroundColor3 = THEME.PurpleNeon
+topAccentBar.BorderSizePixel = 0
+topAccentBar.ZIndex = 5
+topAccentBar.Parent = mainFrame
+addCorner(topAccentBar, 2)
+
+-- Header Bar
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 50)
+header.BackgroundColor3 = THEME.BgDeep
+header.BorderSizePixel = 0
+header.Parent = mainFrame
+addCorner(header, 16)
+
+local headerBottomFix = Instance.new("Frame")
+headerBottomFix.Size = UDim2.new(1, 0, 0, 14)
+headerBottomFix.Position = UDim2.new(0, 0, 1, -14)
+headerBottomFix.BackgroundColor3 = THEME.BgDeep
+headerBottomFix.BorderSizePixel = 0
+headerBottomFix.Parent = header
+
+local headerDivider = Instance.new("Frame")
+headerDivider.Size = UDim2.new(1, -24, 0, 1)
+headerDivider.Position = UDim2.new(0, 12, 1, -1)
+headerDivider.BackgroundColor3 = THEME.BorderMuted
+headerDivider.BackgroundTransparency = 0.55
+headerDivider.BorderSizePixel = 0
+headerDivider.Parent = header
+
+-- ไอคอนวงกลมเรืองแสงหน้าชื่อหัวข้อ
+local pulseOrb = Instance.new("Frame")
+pulseOrb.Size = UDim2.new(0, 12, 0, 12)
+pulseOrb.Position = UDim2.new(0, 15, 0.5, -6)
+pulseOrb.BackgroundColor3 = THEME.PurpleNeon
+pulseOrb.BorderSizePixel = 0
+pulseOrb.Parent = header
+addCorner(pulseOrb, 99)
+addStroke(pulseOrb, THEME.PurpleCore, 2.5, 0.4)
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -100, 0, 20)
+titleText.Position = UDim2.new(0, 36, 0, 7)
+titleText.BackgroundTransparency = 1
+titleText.Text = "LUCK & CHANCE ENGINE"
+titleText.TextColor3 = THEME.TextWhite
+titleText.TextSize = 14
+titleText.Font = Enum.Font.GothamBold
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Parent = header
+
+local subTitleText = Instance.new("TextLabel")
+subTitleText.Size = UDim2.new(1, -100, 0, 15)
+subTitleText.Position = UDim2.new(0, 36, 0, 27)
+subTitleText.BackgroundTransparency = 1
+subTitleText.Text = "PLAYER BOOST • MAX 9,000,000"
+subTitleText.TextColor3 = THEME.PurpleNeon
+subTitleText.TextSize = 10
+subTitleText.Font = Enum.Font.GothamMedium
+subTitleText.TextXAlignment = Enum.TextXAlignment.Left
+subTitleText.Parent = header
+
+-- ปุ่มย่อ / ขยายหน้าต่าง
+local minBtn = Instance.new("TextButton")
+minBtn.Name = "MinimizeButton"
+minBtn.Size = UDim2.new(0, 30, 0, 30)
+minBtn.Position = UDim2.new(1, -42, 0.5, -15)
+minBtn.BackgroundColor3 = THEME.BgInput
+minBtn.Text = "—"
+minBtn.TextColor3 = THEME.TextWhite
+minBtn.TextSize = 14
+minBtn.Font = Enum.Font.GothamBold
+minBtn.Parent = header
+addCorner(minBtn, 8)
+addStroke(minBtn, THEME.BorderMuted, 1, 0.4)
+
+-- เปิดใช้งานระบบลากที่ส่วนหัว
+makeDraggable(header, mainFrame)
+
+-- ============================================================================
+-- 5. BODY CONTAINER & STAT MODULES
+-- ============================================================================
+local bodyContainer = Instance.new("Frame")
+bodyContainer.Name = "BodyContainer"
+bodyContainer.Size = UDim2.new(1, -24, 1, -62)
+bodyContainer.Position = UDim2.new(0, 12, 0, 56)
+bodyContainer.BackgroundTransparency = 1
+bodyContainer.ClipsDescendants = true
+bodyContainer.Parent = mainFrame
+
+local bodyLayout = Instance.new("UIListLayout")
+bodyLayout.Padding = UDim.new(0, 11)
+bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+bodyLayout.Parent = bodyContainer
+
+local watermarkLiveLabel -- ประกาศล่วงหน้าเพื่ออัปเดตค่าบนลายน้ำแบบเรียลไทม์
+
+local function updateWatermarkReadout()
+	if not watermarkLiveLabel then return end
+	local lTxt = State.LuckEnabled and formatCompact(State.LuckValue) or "OFF"
+	local cTxt = State.ChanceEnabled and formatCompact(State.ChanceValue) or "OFF"
+	watermarkLiveLabel.Text = "L:" .. lTxt .. " | C:" .. cTxt
+end
+
+-- ฟังก์ชันสร้างโมดูลการ์ดควบคุมแต่ละค่า (โชคลาภ / โอกาส)
+local function buildStatModule(opts)
+	local card = Instance.new("Frame")
+	card.Name = opts.Id .. "Module"
+	card.Size = UDim2.new(1, 0, 0, 162)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	card.LayoutOrder = opts.Order
+	card.Parent = bodyContainer
+	addCorner(card, 12)
+
+	local cardStroke = addStroke(card, THEME.BorderMuted, 1.2, 0.5)
+
+	-- แถวที่ 1: ชื่อหัวข้อ + สถานะ + สวิตช์เปิด/ปิด
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(0.68, 0, 0, 20)
+	nameLabel.Position = UDim2.new(0, 12, 0, 10)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = opts.Title
+	nameLabel.TextColor3 = THEME.TextWhite
+	nameLabel.TextSize = 14
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.Parent = card
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Size = UDim2.new(0.68, 0, 0, 15)
+	statusLabel.Position = UDim2.new(0, 12, 0, 30)
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Text = "● ปิดใช้งาน (0 / 9,000,000)"
+	statusLabel.TextColor3 = THEME.StatusOff
+	statusLabel.TextSize = 11
+	statusLabel.Font = Enum.Font.GothamMedium
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.Parent = card
+
+	local toggleSwitch = Instance.new("TextButton")
+	toggleSwitch.Size = UDim2.new(0, 54, 0, 26)
+	toggleSwitch.Position = UDim2.new(1, -66, 0, 13)
+	toggleSwitch.BackgroundColor3 = THEME.BgInput
+	toggleSwitch.Text = ""
+	toggleSwitch.AutoButtonColor = false
+	toggleSwitch.Parent = card
+	addCorner(toggleSwitch, 99)
+	local switchStroke = addStroke(toggleSwitch, THEME.BorderMuted, 1, 0.4)
+
+	local switchKnob = Instance.new("Frame")
+	switchKnob.Size = UDim2.new(0, 20, 0, 20)
+	switchKnob.Position = UDim2.new(0, 3, 0.5, -10)
+	switchKnob.BackgroundColor3 = THEME.TextWhite
+	switchKnob.BorderSizePixel = 0
+	switchKnob.Parent = toggleSwitch
+	addCorner(switchKnob, 99)
+
+	-- แถวที่ 2: ช่องกรอกตัวเลขโดยตรง + ปุ่ม MAX 9M
+	local valueInput = Instance.new("TextBox")
+	valueInput.Size = UDim2.new(1, -92, 0, 30)
+	valueInput.Position = UDim2.new(0, 12, 0, 52)
+	valueInput.BackgroundColor3 = THEME.BgInput
+	valueInput.Text = "0"
+	valueInput.PlaceholderText = "กรอกค่า 0 - 9,000,000"
+	valueInput.TextColor3 = THEME.PurpleNeon
+	valueInput.PlaceholderColor3 = THEME.TextDim
+	valueInput.TextSize = 13
+	valueInput.Font = Enum.Font.GothamBold
+	valueInput.ClearTextOnFocus = false
+	valueInput.Parent = card
+	addCorner(valueInput, 8)
+	addStroke(valueInput, THEME.BorderMuted, 1, 0.55)
+
+	local maxButton = Instance.new("TextButton")
+	maxButton.Size = UDim2.new(0, 68, 0, 30)
+	maxButton.Position = UDim2.new(1, -80, 0, 52)
+	maxButton.BackgroundColor3 = THEME.PurpleDeep
+	maxButton.Text = "MAX 9M"
+	maxButton.TextColor3 = THEME.TextWhite
+	maxButton.TextSize = 11
+	maxButton.Font = Enum.Font.GothamBold
+	maxButton.Parent = card
+	addCorner(maxButton, 8)
+	addStroke(maxButton, THEME.PurpleNeon, 1, 0.35)
+
+	-- แถวที่ 3: ปุ่มลัดเพิ่มค่าแบบรวดเร็ว (+100K, +1M, 50% 4.5M, 0)
+	local presetRow = Instance.new("Frame")
+	presetRow.Size = UDim2.new(1, -24, 0, 24)
+	presetRow.Position = UDim2.new(0, 12, 0, 89)
+	presetRow.BackgroundTransparency = 1
+	presetRow.Parent = card
+
+	local presetLayout = Instance.new("UIListLayout")
+	presetLayout.FillDirection = Enum.FillDirection.Horizontal
+	presetLayout.Padding = UDim.new(0, 6)
+	presetLayout.Parent = presetRow
+
+	local presets = {
+		{ Label = "+100K", Action = function(cur) return clampValue(cur + 100000) end },
+		{ Label = "+1M",   Action = function(cur) return clampValue(cur + 1000000) end },
+		{ Label = "4.5M",  Action = function(_)   return 4500000 end },
+		{ Label = "ล้างค่า", Action = function(_)   return 0 end },
+	}
+
+	local refreshUI -- ประกาศล่วงหน้า
+
+	for _, p in ipairs(presets) do
+		local pBtn = Instance.new("TextButton")
+		pBtn.Size = UDim2.new(0.25, -4.5, 1, 0)
+		pBtn.BackgroundColor3 = THEME.BgInput
+		pBtn.Text = p.Label
+		pBtn.TextColor3 = THEME.TextSub
+		pBtn.TextSize = 11
+		pBtn.Font = Enum.Font.GothamSemibold
+		pBtn.Parent = presetRow
+		addCorner(pBtn, 6)
+
+		pBtn.MouseButton1Click:Connect(function()
+			local nextVal = p.Action(opts.GetValue())
+			opts.SetValue(nextVal)
+			if nextVal > 0 and not opts.GetEnabled() then
+				opts.SetEnabled(true)
+			end
+			refreshUI()
+			applyStatsToPlayer()
+		end)
+	end
+
+	-- แถวที่ 4: แถบเลื่อน Slider (0 ถึง 9,000,000)
+	local sliderBg = Instance.new("Frame")
+	sliderBg.Size = UDim2.new(1, -24, 0, 10)
+	sliderBg.Position = UDim2.new(0, 12, 0, 128)
+	sliderBg.BackgroundColor3 = THEME.BgDeep
+	sliderBg.BorderSizePixel = 0
+	sliderBg.Parent = card
+	addCorner(sliderBg, 99)
+	addStroke(sliderBg, THEME.BorderMuted, 1, 0.65)
+
+	local sliderFill = Instance.new("Frame")
+	sliderFill.Size = UDim2.new(0, 0, 1, 0)
+	sliderFill.BackgroundColor3 = THEME.PurpleCore
+	sliderFill.BorderSizePixel = 0
+	sliderFill.Parent = sliderBg
+	addCorner(sliderFill, 99)
+
+	local fillGrad = Instance.new("UIGradient")
+	fillGrad.Color = ColorSequence.new(THEME.PurpleDeep, THEME.PurpleNeon)
+	fillGrad.Parent = sliderFill
+
+	local sliderKnob = Instance.new("Frame")
+	sliderKnob.Size = UDim2.new(0, 18, 0, 18)
+	sliderKnob.Position = UDim2.new(0, -9, 0.5, -9)
+	sliderKnob.BackgroundColor3 = THEME.TextWhite
+	sliderKnob.BorderSizePixel = 0
+	sliderKnob.ZIndex = 3
+	sliderKnob.Parent = sliderBg
+	addCorner(sliderKnob, 99)
+	addStroke(sliderKnob, THEME.PurpleNeon, 2.2, 0.1)
+
+	-- อัปเดตการแสดงผลของการ์ด
+	refreshUI = function()
+		local isOn = opts.GetEnabled()
+		local val = clampValue(opts.GetValue())
+		local pct = val / CONFIG.MaxValue
+
+		valueInput.Text = formatNumber(val)
+		sliderFill.Size = UDim2.new(pct, 0, 1, 0)
+		sliderKnob.Position = UDim2.new(pct, -9, 0.5, -9)
+
+		if isOn then
+			statusLabel.Text = string.format("● เปิดใช้งาน (%s | %.1f%%)", formatNumber(val), pct * 100)
+			statusLabel.TextColor3 = THEME.StatusOn
+			cardStroke.Color = THEME.BorderActive
+			cardStroke.Transparency = 0.15
+			switchStroke.Color = THEME.PurpleNeon
+			tween(toggleSwitch, 0.18, { BackgroundColor3 = THEME.PurpleCore })
+			tween(switchKnob, 0.18, { Position = UDim2.new(1, -23, 0.5, -10) })
+		else
+			statusLabel.Text = string.format("● ปิดใช้งาน (%s / 9,000,000)", formatNumber(val))
+			statusLabel.TextColor3 = THEME.StatusOff
+			cardStroke.Color = THEME.BorderMuted
+			cardStroke.Transparency = 0.55
+			switchStroke.Color = THEME.BorderMuted
+			tween(toggleSwitch, 0.18, { BackgroundColor3 = THEME.BgInput })
+			tween(switchKnob, 0.18, { Position = UDim2.new(0, 3, 0.5, -10) })
+		end
+
+		updateWatermarkReadout()
+	end
+
+	-- Event Handlers
+	toggleSwitch.MouseButton1Click:Connect(function()
+		opts.SetEnabled(not opts.GetEnabled())
+		refreshUI()
+		applyStatsToPlayer()
+	end)
+
+	maxButton.MouseButton1Click:Connect(function()
+		opts.SetValue(CONFIG.MaxValue)
+		opts.SetEnabled(true)
+		refreshUI()
+		applyStatsToPlayer()
+	end)
+
+	valueInput.FocusLost:Connect(function()
+		local digitsOnly = string.gsub(valueInput.Text, "[^%d]", "")
+		local parsed = clampValue(digitsOnly)
+		opts.SetValue(parsed)
+		refreshUI()
+		applyStatsToPlayer()
+	end)
+
+	-- ระบบลาก Slider
+	local isSliding = false
+	local function applySliderX(screenX)
+		local left = sliderBg.AbsolutePosition.X
+		local width = sliderBg.AbsoluteSize.X
+		if width <= 0 then return end
+		local ratio = math.clamp((screenX - left) / width, 0, 1)
+		local targetVal
+		if ratio >= 0.995 then
+			targetVal = CONFIG.MaxValue
+		elseif ratio <= 0.005 then
+			targetVal = 0
+		else
+			local raw = ratio * CONFIG.MaxValue
+			targetVal = clampValue(math.floor((raw + CONFIG.SliderStep / 2) / CONFIG.SliderStep) * CONFIG.SliderStep)
+		end
+		opts.SetValue(targetVal)
+		refreshUI()
+		applyStatsToPlayer()
+	end
+
+	sliderBg.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			isSliding = true
+			applySliderX(input.Position.X)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			applySliderX(input.Position.X)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			isSliding = false
+		end
+	end)
+
+	refreshUI()
+	return refreshUI
+end
+
+-- สร้างโมดูลโชคลาภ (Luck)
+local refreshLuck = buildStatModule({
+	Id         = "Luck",
+	Title      = "โชคลาภ (LUCK BOOST)",
+	Order      = 1,
+	GetEnabled = function() return State.LuckEnabled end,
+	SetEnabled = function(v) State.LuckEnabled = v end,
+	GetValue   = function() return State.LuckValue end,
+	SetValue   = function(v) State.LuckValue = v end,
+})
+
+-- สร้างโมดูลโอกาส (Chance)
+local refreshChance = buildStatModule({
+	Id         = "Chance",
+	Title      = "โอกาสสำเร็จ (CHANCE BOOST)",
+	Order      = 2,
+	GetEnabled = function() return State.ChanceEnabled end,
+	SetEnabled = function(v) State.ChanceEnabled = v end,
+	GetValue   = function() return State.ChanceValue end,
+	SetValue   = function(v) State.ChanceValue = v end,
+})
+
+-- ============================================================================
+-- 6. GLOBAL ACTION FOOTER (เปิดสูงสุด 9M ทั้งคู่ / รีเซ็ตทั้งหมด)
+-- ============================================================================
+local footerBar = Instance.new("Frame")
+footerBar.Name = "FooterActions"
+footerBar.Size = UDim2.new(1, 0, 0, 38)
+footerBar.BackgroundTransparency = 1
+footerBar.LayoutOrder = 3
+footerBar.Parent = bodyContainer
+
+local maxAllBtn = Instance.new("TextButton")
+maxAllBtn.Size = UDim2.new(0.62, -4, 1, 0)
+maxAllBtn.Position = UDim2.new(0, 0, 0, 0)
+maxAllBtn.BackgroundColor3 = THEME.PurpleCore
+maxAllBtn.Text = "เปิด & ตั้งค่าสูงสุด 9 ล้านทั้งหมด"
+maxAllBtn.TextColor3 = THEME.TextWhite
+maxAllBtn.TextSize = 12
+maxAllBtn.Font = Enum.Font.GothamBold
+maxAllBtn.Parent = footerBar
+addCorner(maxAllBtn, 9)
+addStroke(maxAllBtn, THEME.PurpleNeon, 1.2, 0.3)
+
+local resetAllBtn = Instance.new("TextButton")
+resetAllBtn.Size = UDim2.new(0.38, -4, 1, 0)
+resetAllBtn.Position = UDim2.new(0.62, 4, 0, 0)
+resetAllBtn.BackgroundColor3 = THEME.BgInput
+resetAllBtn.Text = "ปิด & รีเซ็ต"
+resetAllBtn.TextColor3 = THEME.TextSub
+resetAllBtn.TextSize = 12
+resetAllBtn.Font = Enum.Font.GothamBold
+resetAllBtn.Parent = footerBar
+addCorner(resetAllBtn, 9)
+addStroke(resetAllBtn, THEME.BorderMuted, 1, 0.45)
+
+maxAllBtn.MouseButton1Click:Connect(function()
+	State.LuckEnabled = true
+	State.ChanceEnabled = true
+	State.LuckValue = CONFIG.MaxValue
+	State.ChanceValue = CONFIG.MaxValue
+	refreshLuck()
+	refreshChance()
+	applyStatsToPlayer()
+end)
+
+resetAllBtn.MouseButton1Click:Connect(function()
+	State.LuckEnabled = false
+	State.ChanceEnabled = false
+	State.LuckValue = 0
+	State.ChanceValue = 0
+	refreshLuck()
+	refreshChance()
+	applyStatsToPlayer()
+end)
+
+-- ย่อ / ขยายหน้าต่างหลัก
+minBtn.MouseButton1Click:Connect(function()
+	State.Minimized = not State.Minimized
+	if State.Minimized then
+		minBtn.Text = "+"
+		bodyContainer.Visible = false
+		tween(mainFrame, 0.22, { Size = UDim2.new(0, CONFIG.PanelWidth, 0, 50) })
+	else
+		minBtn.Text = "—"
+		tween(mainFrame, 0.22, { Size = UDim2.new(0, CONFIG.PanelWidth, 0, CONFIG.PanelHeight) })
+		task.delay(0.08, function()
+			if not State.Minimized then
+				bodyContainer.Visible = true
+			end
+		end)
+	end
+end)
+
+-- ============================================================================
+-- 7. DRAGGABLE WATERMARK CIRCLE (วงกลมลายน้ำที่ลากได้อิสระ)
+-- ============================================================================
+local wmSize = CONFIG.WatermarkSize
+local watermark = Instance.new("Frame")
+watermark.Name = "DraggableWatermarkCircle"
+watermark.Size = UDim2.new(0, wmSize, 0, wmSize)
+watermark.Position = UDim2.new(1, -(wmSize + 24), 1, -(wmSize + 24))
+watermark.BackgroundColor3 = THEME.BgDeep
+watermark.BackgroundTransparency = 0.2
+watermark.BorderSizePixel = 0
+watermark.Active = true
+watermark.ZIndex = 30
+watermark.Parent = screenGui
+addCorner(watermark, 999)
+
+local wmOuterStroke = addStroke(watermark, THEME.PurpleNeon, 2.2, 0.2)
+
+local wmGrad = Instance.new("UIGradient")
+wmGrad.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(58, 22, 102)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(16, 10, 28)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(92, 34, 155)),
+})
+wmGrad.Rotation = 0
+wmGrad.Parent = watermark
+
+-- วงแหวนประดับด้านในวงกลมลายน้ำ
+local innerRing = Instance.new("Frame")
+innerRing.Size = UDim2.new(1, -12, 1, -12)
+innerRing.Position = UDim2.new(0, 6, 0, 6)
+innerRing.BackgroundTransparency = 1
+innerRing.ZIndex = 31
+innerRing.Parent = watermark
+addCorner(innerRing, 999)
+addStroke(innerRing, THEME.PurpleCore, 1.2, 0.45)
+
+local wmTitle = Instance.new("TextLabel")
+wmTitle.Size = UDim2.new(1, -10, 0, 18)
+wmTitle.Position = UDim2.new(0, 5, 0.5, -21)
+wmTitle.BackgroundTransparency = 1
+wmTitle.Text = CONFIG.WatermarkText
+wmTitle.TextColor3 = THEME.TextWhite
+wmTitle.TextTransparency = 0.1
+wmTitle.TextSize = 12
+wmTitle.Font = Enum.Font.GothamBold
+wmTitle.ZIndex = 32
+wmTitle.Parent = watermark
+
+watermarkLiveLabel = Instance.new("TextLabel")
+watermarkLiveLabel.Size = UDim2.new(1, -10, 0, 14)
+watermarkLiveLabel.Position = UDim2.new(0, 5, 0.5, -2)
+watermarkLiveLabel.BackgroundTransparency = 1
+watermarkLiveLabel.Text = "L:OFF | C:OFF"
+watermarkLiveLabel.TextColor3 = THEME.PurpleNeon
+watermarkLiveLabel.TextTransparency = 0.15
+watermarkLiveLabel.TextSize = 9
+watermarkLiveLabel.Font = Enum.Font.GothamSemibold
+watermarkLiveLabel.ZIndex = 32
+watermarkLiveLabel.Parent = watermark
+
+local wmHint = Instance.new("TextLabel")
+wmHint.Size = UDim2.new(1, -10, 0, 12)
+wmHint.Position = UDim2.new(0, 5, 0.5, 13)
+wmHint.BackgroundTransparency = 1
+wmHint.Text = CONFIG.WatermarkSubText
+wmHint.TextColor3 = THEME.TextDim
+wmHint.TextTransparency = 0.25
+wmHint.TextSize = 8
+wmHint.Font = Enum.Font.Gotham
+wmHint.ZIndex = 32
+wmHint.Parent = watermark
+
+-- แอนิเมชันหมุนแสงวงกลมลายน้ำต่อเนื่อง
+RunService.RenderStepped:Connect(function(dt)
+	wmGrad.Rotation = (wmGrad.Rotation + dt * 28) % 360
+end)
+
+-- เปิดใช้งานระบบลากวงกลมลายน้ำพร้อมเอฟเฟกต์ขยายเบาๆ ตอนจับลาก
+makeDraggable(
+	watermark,
+	watermark,
+	function()
+		tween(watermark, 0.15, {
+			Size = UDim2.new(0, wmSize + 6, 0, wmSize + 6),
+			BackgroundTransparency = 0.08,
+		})
+		wmOuterStroke.Transparency = 0.05
+	end,
+	function()
+		tween(watermark, 0.15, {
+			Size = UDim2.new(0, wmSize, 0, wmSize),
+			BackgroundTransparency = 0.2,
+		})
+		wmOuterStroke.Transparency = 0.2
+	end
+)
+
+-- ซิงค์สถานะเริ่มต้นทันทีที่โหลดเสร็จ
+updateWatermarkReadout()
+applyStatsToPlayer()
