@@ -1,0 +1,375 @@
+pcall(function()
+	local Players = game:GetService("Players")
+	local TweenService = game:GetService("TweenService")
+	local RunService = game:GetService("RunService")
+
+	local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+	local playerGui = player:WaitForChild("PlayerGui", 10)
+	if not playerGui then return end
+
+	local old = playerGui:FindFirstChild("RockKeySystemGui")
+	if old then old:Destroy() end
+
+	-- ==========================================
+	-- ตั้งค่ารายการลิงก์ (รวม 5 ลิงก์)
+	-- ==========================================
+	local SCRIPT_ITEMS = {
+		{
+			id = "EditCode",
+			btnText = "1. โปรแกรมแก้ไขโค้ด (Edit Code)",
+			winTitle = "Edit Code Runner",
+			loadingText = "กำลังโหลด Edit_code...",
+			successText = "โหลด Edit_code แล้ว!",
+			color = Color3.fromRGB(65, 120, 240),
+			winColor = Color3.fromRGB(26, 36, 58),
+			url = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/Edit_code_fixed.lua",
+		},
+		{
+			id = "MCMILLAN",
+			btnText = "2. โปรแกรมตัวละครและ player (MCMILLAN)",
+			winTitle = "MCMILLAN Hub",
+			loadingText = "กำลังโหลด player_MCMILLAN.lua...",
+			successText = "โหลด player_MCMILLAN.lua แล้ว!",
+			color = Color3.fromRGB(155, 75, 225),
+			winColor = Color3.fromRGB(45, 24, 62),
+			url = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/player_MCMILLAN.lua",
+		},
+		{
+			id = "GODMOD",
+			btnText = "3. GODMOD",
+			winTitle = "GODMOD Hub",
+			loadingText = "กำลังโหลด GODMOD.lua...",
+			successText = "โหลด GODMOD.lua แล้ว!",
+			color = Color3.fromRGB(190, 55, 145),
+			winColor = Color3.fromRGB(58, 20, 52),
+			url = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/GodMode_PurpleBlack_UI_All_In_One.lua",
+		},
+		{
+			id = "XRayScanner",
+			btnText = "4. XRay Item Scanner 9B",
+			winTitle = "XRay Item Scanner Hub",
+			loadingText = "กำลังโหลด XRay_Item_Scanner_9B.lua.txt...",
+			successText = "โหลด XRay_Item_Scanner_9B แล้ว!",
+			color = Color3.fromRGB(35, 175, 165),
+			winColor = Color3.fromRGB(20, 48, 52),
+			url = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/XRay_Item_Scanner_9B.lua.txt",
+		},
+		{
+			id = "DamageControl",
+			btnText = "5. Damage Control (Dark Purple)",
+			winTitle = "Damage Control Hub",
+			loadingText = "กำลังโหลด DamageControl_DarkPurple_GUI.lua.txt...",
+			successText = "โหลด DamageControl แล้ว!",
+			color = Color3.fromRGB(120, 65, 210),
+			winColor = Color3.fromRGB(38, 20, 62),
+			url = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/DamageControl_DarkPurple_GUI.lua.txt",
+		},
+	}
+
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "RockKeySystemGui"
+	screenGui.ResetOnSpawn = false
+	screenGui.DisplayOrder = 999999
+	screenGui.IgnoreGuiInset = true
+	screenGui.Parent = playerGui
+
+	-- ==========================================
+	-- 1. หน้าต่างระบบคีย์ (แยกชั้นชัดเจน ไม่ซ้อน)
+	-- ==========================================
+	local keyFrame = Instance.new("Frame")
+	keyFrame.Name = "KeyFrame"
+	keyFrame.Size = UDim2.new(0, 340, 0, 210)
+	keyFrame.Position = UDim2.new(0.5, -170, 0.5, -105)
+	keyFrame.BackgroundColor3 = Color3.fromRGB(22, 18, 42)
+	keyFrame.BorderSizePixel = 0
+	keyFrame.Active = true
+	keyFrame.Draggable = true
+	keyFrame.ZIndex = 10
+	keyFrame.Parent = screenGui
+	Instance.new("UICorner", keyFrame).CornerRadius = UDim.new(0, 12)
+
+	local keyTitle = Instance.new("TextLabel")
+	keyTitle.Size = UDim2.new(1, 0, 0, 36)
+	keyTitle.Position = UDim2.new(0, 0, 0, 0)
+	keyTitle.BackgroundColor3 = Color3.fromRGB(36, 28, 72)
+	keyTitle.Text = "📜 ROCK KEY SYSTEM"
+	keyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	keyTitle.TextSize = 14
+	keyTitle.Font = Enum.Font.GothamBold
+	keyTitle.ZIndex = 12
+	keyTitle.Parent = keyFrame
+	Instance.new("UICorner", keyTitle).CornerRadius = UDim.new(0, 12)
+
+	local keyBox = Instance.new("TextBox")
+	keyBox.Name = "KeyInputBox"
+	keyBox.Size = UDim2.new(1, -28, 0, 38)
+	keyBox.Position = UDim2.new(0, 14, 0, 48)
+	keyBox.BackgroundColor3 = Color3.fromRGB(50, 44, 86)
+	keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	keyBox.PlaceholderText = "ใส่คีย์อะไรก็ได้ หรือกด Copy & Paste..."
+	keyBox.PlaceholderColor3 = Color3.fromRGB(185, 185, 215)
+	keyBox.Text = ""
+	keyBox.TextSize = 13
+	keyBox.Font = Enum.Font.Gotham
+	keyBox.ClearTextOnFocus = false
+	keyBox.ZIndex = 15
+	keyBox.Parent = keyFrame
+	Instance.new("UICorner", keyBox).CornerRadius = UDim.new(0, 8)
+
+	local copyPasteBtn = Instance.new("TextButton")
+	copyPasteBtn.Name = "CopyPasteBtn"
+	copyPasteBtn.Size = UDim2.new(0.5, -18, 0, 38)
+	copyPasteBtn.Position = UDim2.new(0, 14, 0, 98)
+	copyPasteBtn.BackgroundColor3 = Color3.fromRGB(65, 120, 240)
+	copyPasteBtn.Text = "Copy & Paste Key"
+	copyPasteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	copyPasteBtn.TextSize = 13
+	copyPasteBtn.Font = Enum.Font.GothamBold
+	copyPasteBtn.ZIndex = 15
+	copyPasteBtn.Parent = keyFrame
+	Instance.new("UICorner", copyPasteBtn).CornerRadius = UDim.new(0, 8)
+
+	local confirmKeyBtn = Instance.new("TextButton")
+	confirmKeyBtn.Name = "ConfirmKeyBtn"
+	confirmKeyBtn.Size = UDim2.new(0.5, -18, 0, 38)
+	confirmKeyBtn.Position = UDim2.new(0.5, 4, 0, 98)
+	confirmKeyBtn.BackgroundColor3 = Color3.fromRGB(45, 190, 115)
+	confirmKeyBtn.Text = "ยืนยันคีย์"
+	confirmKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	confirmKeyBtn.TextSize = 13
+	confirmKeyBtn.Font = Enum.Font.GothamBold
+	confirmKeyBtn.ZIndex = 15
+	confirmKeyBtn.Parent = keyFrame
+	Instance.new("UICorner", confirmKeyBtn).CornerRadius = UDim.new(0, 8)
+
+	local keyStatus = Instance.new("TextLabel")
+	keyStatus.Name = "KeyStatus"
+	keyStatus.Size = UDim2.new(1, -28, 0, 26)
+	keyStatus.Position = UDim2.new(0, 14, 0, 148)
+	keyStatus.BackgroundTransparency = 1
+	keyStatus.Text = "พิมพ์คีย์อะไรก็ได้แล้วกด ยืนยันคีย์"
+	keyStatus.TextColor3 = Color3.fromRGB(200, 215, 255)
+	keyStatus.TextSize = 12
+	keyStatus.Font = Enum.Font.Gotham
+	keyStatus.ZIndex = 15
+	keyStatus.Parent = keyFrame
+
+	-- ==========================================
+	-- 2. วงกลมลากได้ + หมุนได้ + บุบ/ขยาย
+	-- ==========================================
+	local circleBtn = Instance.new("ImageButton")
+	circleBtn.Name = "CircleToggle"
+	circleBtn.Size = UDim2.new(0, 66, 0, 66)
+	circleBtn.Position = UDim2.new(0.08, 0, 0.35, 0)
+	circleBtn.BackgroundColor3 = Color3.fromRGB(28, 20, 62)
+	circleBtn.AutoButtonColor = false
+	circleBtn.Active = true
+	circleBtn.Draggable = true
+	circleBtn.Visible = false
+	circleBtn.ZIndex = 30
+	circleBtn.Parent = screenGui
+	Instance.new("UICorner", circleBtn).CornerRadius = UDim.new(1, 0)
+
+	local circleLabel = Instance.new("TextLabel")
+	circleLabel.Size = UDim2.new(1, 0, 1, 0)
+	circleLabel.BackgroundTransparency = 1
+	circleLabel.Text = "📜"
+	circleLabel.TextSize = 24
+	circleLabel.Font = Enum.Font.GothamBold
+	circleLabel.ZIndex = 31
+	circleLabel.Parent = circleBtn
+
+	RunService.RenderStepped:Connect(function(dt)
+		if circleBtn.Visible then
+			circleBtn.Rotation = (circleBtn.Rotation + dt * 60) % 360
+			circleLabel.Rotation = -circleBtn.Rotation
+		end
+	end)
+
+	-- ==========================================
+	-- 3. หน้าต่างเลือกโหมด (ขยายความสูงตามจำนวนลิงก์)
+	-- ==========================================
+	local selectorHeight = 62 + (#SCRIPT_ITEMS * 50)
+	local selectorFrame = Instance.new("Frame")
+	selectorFrame.Name = "SelectorFrame"
+	selectorFrame.Size = UDim2.new(0, 350, 0, selectorHeight)
+	selectorFrame.Position = UDim2.new(0.5, -175, 0.5, -math.floor(selectorHeight / 2))
+	selectorFrame.BackgroundColor3 = Color3.fromRGB(22, 18, 42)
+	selectorFrame.BorderSizePixel = 0
+	selectorFrame.Active = true
+	selectorFrame.Draggable = true
+	selectorFrame.Visible = false
+	selectorFrame.ZIndex = 20
+	selectorFrame.Parent = screenGui
+	Instance.new("UICorner", selectorFrame).CornerRadius = UDim.new(0, 12)
+
+	local askTitle = Instance.new("TextLabel")
+	askTitle.Size = UDim2.new(1, -44, 0, 38)
+	askTitle.Position = UDim2.new(0, 10, 0, 4)
+	askTitle.BackgroundTransparency = 1
+	askTitle.Text = "เลือกโปรแกรมที่ต้องการรัน:"
+	askTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	askTitle.TextSize = 12
+	askTitle.Font = Enum.Font.GothamBold
+	askTitle.TextXAlignment = Enum.TextXAlignment.Left
+	askTitle.TextWrapped = true
+	askTitle.ZIndex = 21
+	askTitle.Parent = selectorFrame
+
+	local minSelectorBtn = Instance.new("TextButton")
+	minSelectorBtn.Size = UDim2.new(0, 26, 0, 26)
+	minSelectorBtn.Position = UDim2.new(1, -32, 0, 6)
+	minSelectorBtn.BackgroundColor3 = Color3.fromRGB(255, 175, 50)
+	minSelectorBtn.Text = "—"
+	minSelectorBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
+	minSelectorBtn.Font = Enum.Font.GothamBold
+	minSelectorBtn.ZIndex = 22
+	minSelectorBtn.Parent = selectorFrame
+	Instance.new("UICorner", minSelectorBtn).CornerRadius = UDim.new(0, 6)
+
+	-- ==========================================
+	-- 4. สร้างปุ่มและหน้าต่างย่อยอัตโนมัติจาก SCRIPT_ITEMS
+	-- ==========================================
+	local function createSubWindow(name, titleStr, pos, bgCol)
+		local win = Instance.new("Frame")
+		win.Name = name
+		win.Size = UDim2.new(0, 300, 0, 130)
+		win.Position = pos
+		win.BackgroundColor3 = bgCol
+		win.BorderSizePixel = 0
+		win.Active = true
+		win.Draggable = true
+		win.Visible = false
+		win.ZIndex = 25
+		win.Parent = screenGui
+		Instance.new("UICorner", win).CornerRadius = UDim.new(0, 12)
+
+		local lbl = Instance.new("TextLabel")
+		lbl.Size = UDim2.new(1, -40, 0, 30)
+		lbl.Position = UDim2.new(0, 10, 0, 4)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = titleStr
+		lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+		lbl.TextSize = 12
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.ZIndex = 26
+		lbl.Parent = win
+
+		local minBtn = Instance.new("TextButton")
+		minBtn.Size = UDim2.new(0, 24, 0, 24)
+		minBtn.Position = UDim2.new(1, -30, 0, 6)
+		minBtn.BackgroundColor3 = Color3.fromRGB(255, 175, 50)
+		minBtn.Text = "—"
+		minBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
+		minBtn.Font = Enum.Font.GothamBold
+		minBtn.ZIndex = 27
+		minBtn.Parent = win
+		Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
+
+		local info = Instance.new("TextLabel")
+		info.Size = UDim2.new(1, -20, 0, 75)
+		info.Position = UDim2.new(0, 10, 0, 40)
+		info.BackgroundTransparency = 1
+		info.Text = "เปิดทับซ้อนกันได้ กด — เพื่อย่อไปที่วงกลม"
+		info.TextColor3 = Color3.fromRGB(230, 235, 255)
+		info.TextSize = 11
+		info.Font = Enum.Font.Gotham
+		info.TextWrapped = true
+		info.ZIndex = 26
+		info.Parent = win
+
+		minBtn.MouseButton1Click:Connect(function()
+			win.Visible = false
+		end)
+
+		return win, info
+	end
+
+	for idx, item in ipairs(SCRIPT_ITEMS) do
+		local btn = Instance.new("TextButton")
+		btn.Name = item.id .. "Btn"
+		btn.Size = UDim2.new(1, -28, 0, 40)
+		btn.Position = UDim2.new(0, 14, 0, 50 + ((idx - 1) * 50))
+		btn.BackgroundColor3 = item.color
+		btn.Text = item.btnText
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.TextSize = 13
+		btn.Font = Enum.Font.GothamBold
+		btn.ZIndex = 21
+		btn.Parent = selectorFrame
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+		local winPos = UDim2.new(0.16 + (((idx - 1) % 3) * 0.16), 0, 0.18 + (((idx - 1) % 3) * 0.14), 0)
+		local subWin, subInfo = createSubWindow(item.id .. "SubWin", item.winTitle, winPos, item.winColor)
+
+		local isLoaded = false
+		local isLoading = false
+
+		btn.MouseButton1Click:Connect(function()
+			subWin.Visible = true
+			if isLoaded or isLoading then return end
+			isLoading = true
+			subInfo.Text = item.loadingText
+
+			task.spawn(function()
+				local ok, err = pcall(function()
+					local src = game:HttpGet(item.url)
+					local fn = loadstring(src)
+					if type(fn) ~= "function" then
+						error("ไม่สามารถคอมไพล์สคริปต์ได้")
+					end
+					fn()
+				end)
+
+				isLoading = false
+				if ok then
+					isLoaded = true
+					subInfo.Text = item.successText
+				else
+					subInfo.Text = "โหลดไม่สำเร็จ: " .. tostring(err)
+				end
+			end)
+		end)
+	end
+
+	minSelectorBtn.MouseButton1Click:Connect(function()
+		selectorFrame.Visible = false
+	end)
+
+	local dented = false
+	circleBtn.MouseButton1Click:Connect(function()
+		dented = not dented
+		local t1 = TweenService:Create(circleBtn, TweenInfo.new(0.1), { Size = UDim2.new(0, 48, 0, 48) })
+		local t2 = TweenService:Create(circleBtn, TweenInfo.new(0.18), {
+			Size = dented and UDim2.new(0, 56, 0, 56) or UDim2.new(0, 74, 0, 74)
+		})
+		t1:Play()
+		t1.Completed:Connect(function()
+			t2:Play()
+		end)
+		selectorFrame.Visible = not selectorFrame.Visible
+	end)
+
+	copyPasteBtn.MouseButton1Click:Connect(function()
+		local autoKey = "ROCK-KEY-AUTO-2026"
+		pcall(function()
+			if setclipboard then setclipboard(autoKey) end
+		end)
+		keyBox.Text = autoKey
+		keyStatus.Text = "Copy & Paste คีย์ให้อัตโนมัติแล้ว!"
+		keyStatus.TextColor3 = Color3.fromRGB(115, 225, 255)
+	end)
+
+	confirmKeyBtn.MouseButton1Click:Connect(function()
+		if keyBox.Text == "" then
+			keyBox.Text = "ANY-KEY-OK"
+		end
+		keyStatus.Text = "ยืนยันสำเร็จ!"
+		keyStatus.TextColor3 = Color3.fromRGB(95, 240, 145)
+		task.wait(0.2)
+		keyFrame.Visible = false
+		circleBtn.Visible = true
+		selectorFrame.Visible = true
+	end)
+end)
