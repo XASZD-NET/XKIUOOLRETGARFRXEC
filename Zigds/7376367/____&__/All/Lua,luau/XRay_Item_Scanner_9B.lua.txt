@@ -1,0 +1,643 @@
+--[[
+    X-Ray Item Scanner (Roblox Client Script / LocalScript)
+    Theme: Dark Purple (#0E0818 / #1A0E2E / #7C3AED)
+    Position: Slightly top-left of screen (default AnchorPoint / Position)
+    Range: 100 - 9,000,000,000 (9B)
+    Features:
+      - Detailed Item & Underground/Block X-Ray ESP (Highlight + BillboardGui)
+      - Shows Item Name (TH / EN), Value ($), Rarity, Distance (studs)
+      - Draggable Watermark Circle
+      - Configurable range slider/input & toggleable scans (Items, Underground/Blocks)
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ==========================================
+-- CONFIGURATION & ITEM DATABASE (TH / EN)
+-- ==========================================
+local Config = {
+	Enabled = true,
+	ScanItems = true,
+	ScanUnderground = true,
+	MaxRange = 5000, -- 100 to 9,000,000,000 (9B)
+	MinRange = 100,
+	HardCapRange = 9000000000, -- 9B
+	RefreshInterval = 0.25,
+	WatermarkText = "X-RAY\n9B",
+}
+
+-- ตัวอย่างฐานข้อมูลไอเทม/แร่/บล็อก (สามารถเพิ่มชื่อ/Attribute ของเกมคุณลงไปได้)
+local ItemDatabase = {
+	["Diamond"] = { th = "เพชร", en = "Diamond", value = 5000, rarity = "Rare", color = Color3.fromRGB(56, 189, 248) },
+	["Gold"] = { th = "ทองคำ", en = "Gold", value = 1500, rarity = "Uncommon", color = Color3.fromRGB(250, 204, 21) },
+	["Emerald"] = { th = "มรกต", en = "Emerald", value = 12000, rarity = "Epic", color = Color3.fromRGB(52, 211, 153) },
+	["Ruby"] = { th = "ทับทิม", en = "Ruby", value = 25000, rarity = "Mythic", color = Color3.fromRGB(244, 63, 94) },
+	["VoidCrystal"] = { th = "ผลึกมิติมืด", en = "Void Crystal", value = 250000000, rarity = "Divine", color = Color3.fromRGB(168, 85, 247) },
+	["QuantumCore"] = { th = "แกนควอนตัม", en = "Quantum Core", value = 1800000000, rarity = "Celestial", color = Color3.fromRGB(217, 70, 239) },
+	["AetherRelic"] = { th = "วัตถุโบราณอีเธอร์", en = "Aether Relic", value = 7500000000, rarity = "Transcendent", color = Color3.fromRGB(192, 132, 252) },
+}
+
+local RarityColors = {
+	Common = Color3.fromRGB(156, 163, 175),
+	Uncommon = Color3.fromRGB(74, 222, 128),
+	Rare = Color3.fromRGB(56, 189, 248),
+	Epic = Color3.fromRGB(168, 85, 247),
+	Mythic = Color3.fromRGB(244, 63, 94),
+	Divine = Color3.fromRGB(251, 191, 36),
+	Celestial = Color3.fromRGB(232, 121, 249),
+	Transcendent = Color3.fromRGB(129, 140, 248),
+}
+
+-- ==========================================
+-- HELPER FUNCTIONS (FORMAT NUMBER & RANGE)
+-- ==========================================
+local function formatNumber(num)
+	num = tonumber(num) or 0
+	local absNum = math.abs(num)
+	if absNum >= 1e9 then
+		return string.format("%.2fB", num / 1e9)
+	elseif absNum >= 1e6 then
+		return string.format("%.2fM", num / 1e6)
+	elseif absNum >= 1e3 then
+		return string.format("%.2fK", num / 1e3)
+	else
+		return tostring(math.floor(num))
+	end
+end
+
+local function formatFullMoney(num)
+	num = tonumber(num) or 0
+	local formatted = tostring(math.floor(num))
+	while true do
+		local k
+		formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+		if k == 0 then break end
+	end
+	return "$" .. formatted .. " (" .. formatNumber(num) .. ")"
+end
+
+local function clampRange(val)
+	val = tonumber(val) or Config.MinRange
+	return math.clamp(math.floor(val), Config.MinRange, Config.HardCapRange)
+end
+
+local function getRootPosition()
+	local character = player.Character
+	if not character then return nil end
+	local hrp = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+	return hrp and hrp.Position or nil
+end
+
+-- ==========================================
+-- GUI CREATION (DARK PURPLE + TOP-LEFT OFFSET)
+-- ==========================================
+local existingGui = playerGui:FindFirstChild("XRayItemScannerGUI")
+if existingGui then
+	existingGui:Destroy()
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XRayItemScannerGUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+-- วงกลมลายน้ำที่ลากได้ (Draggable Watermark Circle)
+local watermarkCircle = Instance.new("TextButton")
+watermarkCircle.Name = "WatermarkCircle"
+watermarkCircle.Size = UDim2.new(0, 64, 0, 64)
+watermarkCircle.Position = UDim2.new(0, 18, 0, 125)
+watermarkCircle.BackgroundColor3 = Color3.fromRGB(24, 12, 46)
+watermarkCircle.BackgroundTransparency = 0.12
+watermarkCircle.Text = Config.WatermarkText
+watermarkCircle.TextColor3 = Color3.fromRGB(216, 180, 254)
+watermarkCircle.Font = Enum.Font.GothamBold
+watermarkCircle.TextSize = 12
+watermarkCircle.AutoButtonColor = false
+watermarkCircle.ZIndex = 20
+watermarkCircle.Parent = screenGui
+
+local circleCorner = Instance.new("UICorner")
+circleCorner.CornerRadius = UDim.new(1, 0)
+circleCorner.Parent = watermarkCircle
+
+local circleStroke = Instance.new("UIStroke")
+circleStroke.Color = Color3.fromRGB(139, 92, 246)
+circleStroke.Thickness = 2
+circleStroke.Transparency = 0.2
+circleStroke.Parent = watermarkCircle
+
+-- หน้าต่าง GUI หลักโทนดำม่วง (วางไว้ด้านซ้ายบนเล็กน้อย)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainPanel"
+mainFrame.Size = UDim2.new(0, 310, 0, 345)
+mainFrame.Position = UDim2.new(0, 24, 0, 24)
+mainFrame.BackgroundColor3 = Color3.fromRGB(13, 7, 24)
+mainFrame.BorderSizePixel = 0
+mainFrame.ZIndex = 10
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(124, 58, 237)
+mainStroke.Thickness = 1.5
+mainStroke.Parent = mainFrame
+
+local mainGradient = Instance.new("UIGradient")
+mainGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(22, 11, 41)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 5, 19)),
+})
+mainGradient.Rotation = 135
+mainGradient.Parent = mainFrame
+
+-- Header
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 42)
+header.BackgroundColor3 = Color3.fromRGB(33, 16, 64)
+header.BorderSizePixel = 0
+header.ZIndex = 11
+header.Parent = mainFrame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 12)
+headerCorner.Parent = header
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -80, 1, 0)
+titleLabel.Position = UDim2.new(0, 14, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "X-RAY ITEM SCANNER"
+titleLabel.TextColor3 = Color3.fromRGB(237, 233, 254)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 14
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 12
+titleLabel.Parent = header
+
+local subTitle = Instance.new("TextLabel")
+subTitle.Size = UDim2.new(1, -80, 0, 14)
+subTitle.Position = UDim2.new(0, 14, 0, 22)
+subTitle.BackgroundTransparency = 1
+subTitle.Text = "DARK PURPLE • MAX 9B (100 - 9B)"
+subTitle.TextColor3 = Color3.fromRGB(167, 139, 250)
+subTitle.Font = Enum.Font.GothamMedium
+subTitle.TextSize = 9
+subTitle.TextXAlignment = Enum.TextXAlignment.Left
+subTitle.ZIndex = 12
+subTitle.Parent = header
+
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 28, 0, 28)
+minimizeBtn.Position = UDim2.new(1, -36, 0.5, -14)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(59, 28, 110)
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.TextSize = 16
+minimizeBtn.ZIndex = 12
+minimizeBtn.Parent = header
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 7)
+minCorner.Parent = minimizeBtn
+
+-- Body Container
+local body = Instance.new("Frame")
+body.Name = "Body"
+body.Size = UDim2.new(1, -24, 1, -54)
+body.Position = UDim2.new(0, 12, 0, 48)
+body.BackgroundTransparency = 1
+body.ZIndex = 11
+body.Parent = mainFrame
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = body
+
+local function createToggleRow(order, labelText, initialState, onChanged)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, 34)
+	row.BackgroundColor3 = Color3.fromRGB(25, 13, 48)
+	row.BorderSizePixel = 0
+	row.LayoutOrder = order
+	row.ZIndex = 12
+	row.Parent = body
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = row
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(88, 28, 135)
+	stroke.Thickness = 1
+	stroke.Parent = row
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -66, 1, 0)
+	lbl.Position = UDim2.new(0, 10, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextColor3 = Color3.fromRGB(226, 232, 240)
+	lbl.Font = Enum.Font.GothamSemibold
+	lbl.TextSize = 12
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.ZIndex = 13
+	lbl.Parent = row
+
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 48, 0, 22)
+	btn.Position = UDim2.new(1, -56, 0.5, -11)
+	btn.BackgroundColor3 = initialState and Color3.fromRGB(124, 58, 237) or Color3.fromRGB(55, 48, 75)
+	btn.Text = initialState and "ON" or "OFF"
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 11
+	btn.ZIndex = 13
+	btn.Parent = row
+
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0, 6)
+	btnCorner.Parent = btn
+
+	local state = initialState
+	btn.MouseButton1Click:Connect(function()
+		state = not state
+		btn.Text = state and "ON" or "OFF"
+		btn.BackgroundColor3 = state and Color3.fromRGB(124, 58, 237) or Color3.fromRGB(55, 48, 75)
+		onChanged(state)
+	end)
+end
+
+createToggleRow(1, "เปิดใช้งาน X-Ray ทั้งหมด", Config.Enabled, function(v)
+	Config.Enabled = v
+end)
+
+createToggleRow(2, "เอกซเรย์ไอเทม (Item ESP)", Config.ScanItems, function(v)
+	Config.ScanItems = v
+end)
+
+createToggleRow(3, "เอกซเรย์บล็อก / ของใต้ดิน", Config.ScanUnderground, function(v)
+	Config.ScanUnderground = v
+end)
+
+-- Range Input Box (100 - 9B)
+local rangeFrame = Instance.new("Frame")
+rangeFrame.Size = UDim2.new(1, 0, 0, 62)
+rangeFrame.BackgroundColor3 = Color3.fromRGB(25, 13, 48)
+rangeFrame.BorderSizePixel = 0
+rangeFrame.LayoutOrder = 4
+rangeFrame.ZIndex = 12
+rangeFrame.Parent = body
+
+local rangeCorner = Instance.new("UICorner")
+rangeCorner.CornerRadius = UDim.new(0, 8)
+rangeCorner.Parent = rangeFrame
+
+local rangeStroke = Instance.new("UIStroke")
+rangeStroke.Color = Color3.fromRGB(88, 28, 135)
+rangeStroke.Thickness = 1
+rangeStroke.Parent = rangeFrame
+
+local rangeTitle = Instance.new("TextLabel")
+rangeTitle.Size = UDim2.new(1, -16, 0, 20)
+rangeTitle.Position = UDim2.new(0, 8, 0, 4)
+rangeTitle.BackgroundTransparency = 1
+rangeTitle.Text = "ระยะทาง X-Ray (100 - 9,000,000,000 / 9B)"
+rangeTitle.TextColor3 = Color3.fromRGB(196, 181, 253)
+rangeTitle.Font = Enum.Font.GothamBold
+rangeTitle.TextSize = 11
+rangeTitle.TextXAlignment = Enum.TextXAlignment.Left
+rangeTitle.ZIndex = 13
+rangeTitle.Parent = rangeFrame
+
+local rangeInput = Instance.new("TextBox")
+rangeInput.Size = UDim2.new(1, -96, 0, 26)
+rangeInput.Position = UDim2.new(0, 8, 0, 28)
+rangeInput.BackgroundColor3 = Color3.fromRGB(15, 8, 28)
+rangeInput.Text = tostring(Config.MaxRange)
+rangeInput.PlaceholderText = "เช่น 5000 หรือ 9000000000"
+rangeInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+rangeInput.Font = Enum.Font.GothamBold
+rangeInput.TextSize = 12
+rangeInput.ClearTextOnFocus = false
+rangeInput.ZIndex = 13
+rangeInput.Parent = rangeFrame
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 6)
+inputCorner.Parent = rangeInput
+
+local max9BBbtn = Instance.new("TextButton")
+max9BBbtn.Size = UDim2.new(0, 76, 0, 26)
+max9BBbtn.Position = UDim2.new(1, -84, 0, 28)
+max9BBbtn.BackgroundColor3 = Color3.fromRGB(109, 40, 217)
+max9BBbtn.Text = "MAX 9B"
+max9BBbtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+max9BBbtn.Font = Enum.Font.GothamBold
+max9BBbtn.TextSize = 11
+max9BBbtn.ZIndex = 13
+max9BBbtn.Parent = rangeFrame
+
+local maxCorner = Instance.new("UICorner")
+maxCorner.CornerRadius = UDim.new(0, 6)
+maxCorner.Parent = max9BBbtn
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0, 56)
+statusLabel.BackgroundColor3 = Color3.fromRGB(18, 9, 35)
+statusLabel.BorderSizePixel = 0
+statusLabel.LayoutOrder = 5
+statusLabel.Text = "ระยะปัจจุบัน: " .. formatNumber(Config.MaxRange) .. " studs | พบเป้าหมาย: 0"
+statusLabel.TextColor3 = Color3.fromRGB(216, 180, 254)
+statusLabel.Font = Enum.Font.GothamMedium
+statusLabel.TextSize = 11
+statusLabel.TextWrapped = true
+statusLabel.ZIndex = 12
+statusLabel.Parent = body
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 8)
+statusCorner.Parent = statusLabel
+
+local function updateRange(newVal)
+	Config.MaxRange = clampRange(newVal)
+	rangeInput.Text = tostring(Config.MaxRange)
+end
+
+rangeInput.FocusLost:Connect(function()
+	local cleanText = string.lower(rangeInput.Text or "")
+	cleanText = string.gsub(cleanText, ",", "")
+	local multiplier = 1
+	if string.sub(cleanText, -1) == "b" then
+		multiplier = 1e9
+		cleanText = string.sub(cleanText, 1, -2)
+	elseif string.sub(cleanText, -1) == "m" then
+		multiplier = 1e6
+		cleanText = string.sub(cleanText, 1, -2)
+	elseif string.sub(cleanText, -1) == "k" then
+		multiplier = 1e3
+		cleanText = string.sub(cleanText, 1, -2)
+	end
+	local parsed = (tonumber(cleanText) or Config.MaxRange) * multiplier
+	updateRange(parsed)
+end)
+
+max9BBbtn.MouseButton1Click:Connect(function()
+	updateRange(Config.HardCapRange)
+end)
+
+-- ปุ่มย่อ/ขยาย GUI
+local isMinimized = false
+minimizeBtn.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	body.Visible = not isMinimized
+	minimizeBtn.Text = isMinimized and "+" or "-"
+	mainFrame.Size = isMinimized and UDim2.new(0, 310, 0, 42) or UDim2.new(0, 310, 0, 345)
+end)
+
+-- ==========================================
+-- DRAG FUNCTION (วงกลมลายน้ำ & หน้าต่างหลัก)
+-- ==========================================
+local function makeDraggable(guiObject)
+	local dragging = false
+	local dragInput, dragStart, startPos
+
+	guiObject.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = guiObject.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	guiObject.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			guiObject.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+makeDraggable(watermarkCircle)
+makeDraggable(header)
+
+-- ==========================================
+-- X-RAY ESP ENGINE (DETAILED TH/EN + VALUE + RARITY + DIST)
+-- ==========================================
+local activeESP = {}
+
+local function getTargetData(instance)
+	local name = instance.Name
+	local dbEntry = ItemDatabase[name]
+
+	-- อ่านค่าจาก Attribute หรือ Value ข้างในถ้ามี
+	local thName = instance:GetAttribute("NameTH") or (dbEntry and dbEntry.th) or name
+	local enName = instance:GetAttribute("NameEN") or (dbEntry and dbEntry.en) or name
+	local value = instance:GetAttribute("Value") or instance:GetAttribute("Price") or (dbEntry and dbEntry.value) or 0
+	local rarity = instance:GetAttribute("Rarity") or (dbEntry and dbEntry.rarity) or "Common"
+
+	local isUnderground = (instance:GetAttribute("Underground") == true)
+		or (instance:GetAttribute("IsOre") == true)
+		or (instance:GetAttribute("IsBlock") == true)
+		or (dbEntry ~= nil and string.find(string.lower(enName), "crystal") ~= nil)
+
+	local isItem = (instance:GetAttribute("IsItem") == true)
+		or instance:IsA("Tool")
+		or (dbEntry ~= nil and not isUnderground)
+
+	-- ตรวจจับอัตโนมัติจากชื่อหรือตำแหน่งใต้ดิน
+	if not isItem and not isUnderground then
+		local basePart = instance:IsA("BasePart") and instance or instance:FindFirstChildWhichIsA("BasePart", true)
+		if basePart and basePart.Position.Y < -5 then
+			isUnderground = true
+		elseif string.find(string.lower(name), "item") or string.find(string.lower(name), "drop") or string.find(string.lower(name), "loot") then
+			isItem = true
+		end
+	end
+
+	if not isItem and not isUnderground then
+		return nil
+	end
+
+	return {
+		thName = tostring(thName),
+		enName = tostring(enName),
+		value = tonumber(value) or 0,
+		rarity = tostring(rarity),
+		isItem = isItem,
+		isUnderground = isUnderground,
+		color = (dbEntry and dbEntry.color) or RarityColors[rarity] or Color3.fromRGB(168, 85, 247),
+	}
+end
+
+local function createOrUpdateESP(target, data, distance)
+	local adornee = target:IsA("BasePart") and target or target:FindFirstChildWhichIsA("BasePart", true)
+	if not adornee then return end
+
+	local entry = activeESP[target]
+	if not entry then
+		local highlight = Instance.new("Highlight")
+		highlight.Name = "XRayHighlight"
+		highlight.Adornee = target
+		highlight.FillColor = data.color
+		highlight.FillTransparency = 0.45
+		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		highlight.OutlineTransparency = 0.1
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Parent = screenGui
+
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "XRayDetailedTag"
+		billboard.Adornee = adornee
+		billboard.Size = UDim2.new(0, 220, 0, 74)
+		billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+		billboard.AlwaysOnTop = true
+		billboard.MaxDistance = Config.MaxRange
+		billboard.Parent = screenGui
+
+		local box = Instance.new("Frame")
+		box.Size = UDim2.new(1, 0, 1, 0)
+		box.BackgroundColor3 = Color3.fromRGB(15, 7, 28)
+		box.BackgroundTransparency = 0.18
+		box.BorderSizePixel = 0
+		box.Parent = billboard
+
+		local boxCorner = Instance.new("UICorner")
+		boxCorner.CornerRadius = UDim.new(0, 8)
+		boxCorner.Parent = box
+
+		local boxStroke = Instance.new("UIStroke")
+		boxStroke.Color = data.color
+		boxStroke.Thickness = 1.5
+		boxStroke.Parent = box
+
+		local infoText = Instance.new("TextLabel")
+		infoText.Name = "InfoText"
+		infoText.Size = UDim2.new(1, -10, 1, -6)
+		infoText.Position = UDim2.new(0, 5, 0, 3)
+		infoText.BackgroundTransparency = 1
+		infoText.TextColor3 = Color3.fromRGB(255, 255, 255)
+		infoText.Font = Enum.Font.GothamBold
+		infoText.TextSize = 11
+		infoText.TextWrapped = true
+		infoText.TextXAlignment = Enum.TextXAlignment.Left
+		infoText.TextYAlignment = Enum.TextYAlignment.Top
+		infoText.Parent = box
+
+		entry = {
+			highlight = highlight,
+			billboard = billboard,
+			infoText = infoText,
+		}
+		activeESP[target] = entry
+	end
+
+	local categoryTag = data.isUnderground and "[ใต้ดิน/บล็อก]" or "[ไอเทม]"
+	entry.highlight.FillColor = data.color
+	entry.billboard.MaxDistance = Config.MaxRange
+	entry.infoText.Text = string.format(
+		"%s %s (%s)\nราคา: %s | หายาก: %s\nระยะห่าง: %s studs",
+		categoryTag,
+		data.thName,
+		data.enName,
+		formatFullMoney(data.value),
+		data.rarity,
+		formatNumber(distance)
+	)
+end
+
+local function clearAllESP()
+	for target, entry in pairs(activeESP) do
+		if entry.highlight then entry.highlight:Destroy() end
+		if entry.billboard then entry.billboard:Destroy() end
+		activeESP[target] = nil
+	end
+end
+
+local function scanWorld()
+	local rootPos = getRootPosition()
+	if not Config.Enabled or not rootPos then
+		clearAllESP()
+		statusLabel.Text = "สถานะ: ปิดใช้งาน หรือรอตัวละครผู้เล่น"
+		return
+	end
+
+	local seenTargets = {}
+	local foundCount = 0
+
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") or obj:IsA("Model") or obj:IsA("Tool") then
+			local data = getTargetData(obj)
+			if data then
+				if (data.isItem and Config.ScanItems) or (data.isUnderground and Config.ScanUnderground) then
+					local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart", true)
+					if part then
+						local dist = (part.Position - rootPos).Magnitude
+						if dist <= Config.MaxRange then
+							seenTargets[obj] = true
+							foundCount += 1
+							createOrUpdateESP(obj, data, dist)
+						end
+					end
+				end
+			end
+		end
+	end
+
+	for target, entry in pairs(activeESP) do
+		if not seenTargets[target] or not target.Parent then
+			if entry.highlight then entry.highlight:Destroy() end
+			if entry.billboard then entry.billboard:Destroy() end
+			activeESP[target] = nil
+		end
+	end
+
+	statusLabel.Text = string.format(
+		"ระยะ: %s / 9B | พบทั้งหมด: %d ชิ้น\nไอเทม: %s | ใต้ดิน/บล็อก: %s",
+		formatNumber(Config.MaxRange),
+		foundCount,
+		Config.ScanItems and "เปิด" or "ปิด",
+		Config.ScanUnderground and "เปิด" or "ปิด"
+	)
+end
+
+-- ==========================================
+-- MAIN LOOP
+-- ==========================================
+local elapsed = 0
+RunService.Heartbeat:Connect(function(dt)
+	elapsed += dt
+	if elapsed >= Config.RefreshInterval then
+		elapsed = 0
+		pcall(scanWorld)
+	end
+end)

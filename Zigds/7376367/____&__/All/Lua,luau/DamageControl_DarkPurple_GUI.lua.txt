@@ -1,0 +1,407 @@
+-- ============================================================================
+-- ระบบ GUI ปรับความแรง / ดาเมจ (MAX 9,000,000) โทนดำ-ม่วง พร้อมปุ่มวงกลมลายน้ำลากได้
+-- วิธีใช้: นำไปวางใน StarterGui (สร้างเป็น LocalScript) หรือรันผ่านตัวรันสคริปต์
+-- หมายเหตุ: หากใช้ในเกมของตัวเอง แนะนำให้สร้าง RemoteEvent ชื่อ "UpdatePlayerDamageEvent"
+-- ไว้ใน ReplicatedStorage และรับค่าฝั่ง Server เพื่อความปลอดภัย
+-- ============================================================================
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- เรียกใช้ RemoteEvent สำหรับส่งค่าไปให้ Server (ถ้ามี)
+local damageEvent = ReplicatedStorage:FindFirstChild("UpdatePlayerDamageEvent")
+
+-- ตั้งค่าตัวแปรหลัก
+local MAX_DAMAGE = 9000000 -- สูงสุด 9 ล้าน
+local currentDamage = 100
+
+-- ลบ GUI เก่าหากมีอยู่แล้วเพื่อป้องกันการซ้อนทับ
+if playerGui:FindFirstChild("DamageControlUI") then
+	playerGui.DamageControlUI:Destroy()
+end
+
+-- สร้าง ScreenGui หลัก
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DamageControlUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+-- ============================================================================
+-- ฟังก์ชันช่วยทำให้วัตถุลากได้ (Draggable รองรับทั้ง PC และ มือถือ)
+-- ============================================================================
+local function makeDraggable(guiObject)
+	local dragging = false
+	local dragInput, dragStart, startPos
+
+	guiObject.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = guiObject.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	guiObject.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			guiObject.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+-- ============================================================================
+-- 1. ปุ่มวงกลมลายน้ำ (ลากได้ + กดเพื่อ เปิด/ปิด หน้าต่างหลัก)
+-- ============================================================================
+local watermarkBtn = Instance.new("TextButton")
+watermarkBtn.Name = "WatermarkCircle"
+watermarkBtn.Size = UDim2.new(0, 48, 0, 48)
+watermarkBtn.Position = UDim2.new(0, 15, 0, 15) -- มุมซ้ายบน
+watermarkBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 30)
+watermarkBtn.BackgroundTransparency = 0.15
+watermarkBtn.Text = "⚡"
+watermarkBtn.TextColor3 = Color3.fromRGB(190, 110, 255)
+watermarkBtn.TextSize = 22
+watermarkBtn.Font = Enum.Font.GothamBold
+watermarkBtn.AutoButtonColor = false
+watermarkBtn.Parent = screenGui
+
+local circleCorner = Instance.new("UICorner")
+circleCorner.CornerRadius = UDim.new(1, 0) -- วงกลมสมบูรณ์
+circleCorner.Parent = watermarkBtn
+
+local circleStroke = Instance.new("UIStroke")
+circleStroke.Color = Color3.fromRGB(155, 65, 255)
+circleStroke.Thickness = 2
+circleStroke.Parent = watermarkBtn
+
+-- ข้อความลายน้ำเล็กๆ ใต้วงกลม
+local wmLabel = Instance.new("TextLabel")
+wmLabel.Size = UDim2.new(1.4, 0, 0, 14)
+wmLabel.Position = UDim2.new(-0.2, 0, 1, 2)
+wmLabel.BackgroundTransparency = 1
+wmLabel.Text = "DMG SYS"
+wmLabel.TextColor3 = Color3.fromRGB(180, 130, 255)
+wmLabel.TextTransparency = 0.3
+wmLabel.TextSize = 9
+wmLabel.Font = Enum.Font.GothamBold
+wmLabel.Parent = watermarkBtn
+
+makeDraggable(watermarkBtn)
+
+-- ============================================================================
+-- 2. หน้าต่างหลัก (Main Frame - โทนสีดำม่วง)
+-- ============================================================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 270, 0, 185)
+mainFrame.Position = UDim2.new(0, 15, 0, 78) -- จัดวางด้านซ้ายบน ใต้ปุ่มวงกลมเล็กน้อย
+mainFrame.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(130, 50, 230)
+mainStroke.Thickness = 1.8
+mainStroke.Parent = mainFrame
+
+-- ไล่เฉดสีพื้นหลัง (Gradient ดำ-ม่วง)
+local bgGradient = Instance.new("UIGradient")
+bgGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 18, 45)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 10, 18))
+})
+bgGradient.Rotation = 45
+bgGradient.Parent = mainFrame
+
+makeDraggable(mainFrame)
+
+-- แถบหัวข้อ (Header)
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -20, 0, 32)
+titleLabel.Position = UDim2.new(0, 12, 0, 4)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "✦ ปรับความแรง / ดาเมจ (MAX 9M)"
+titleLabel.TextColor3 = Color3.fromRGB(220, 180, 255)
+titleLabel.TextSize = 13
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = mainFrame
+
+-- เส้นคั่นบางๆ
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(1, -24, 0, 1)
+divider.Position = UDim2.new(0, 12, 0, 36)
+divider.BackgroundColor3 = Color3.fromRGB(110, 45, 190)
+divider.BackgroundTransparency = 0.5
+divider.BorderSizePixel = 0
+divider.Parent = mainFrame
+
+-- ฟังก์ชันจัดรูปแบบตัวเลขให้มีลูกน้ำ (เช่น 9,000,000)
+local function formatNumber(n)
+	local formatted = tostring(math.floor(n))
+	while true do
+		local k
+		formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+		if k == 0 then break end
+	end
+	return formatted
+end
+
+-- ข้อความแสดงค่าดาเมจปัจจุบัน
+local valueDisplay = Instance.new("TextLabel")
+valueDisplay.Size = UDim2.new(1, -24, 0, 24)
+valueDisplay.Position = UDim2.new(0, 12, 0, 44)
+valueDisplay.BackgroundTransparency = 1
+valueDisplay.Text = "พลังโจมตี: 100"
+valueDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+valueDisplay.TextSize = 14
+valueDisplay.Font = Enum.Font.GothamSemibold
+valueDisplay.TextXAlignment = Enum.TextXAlignment.Left
+valueDisplay.Parent = mainFrame
+
+-- ช่องพิมพ์ตัวเลขโดยตรง (TextBox)
+local inputBox = Instance.new("TextBox")
+inputBox.Size = UDim2.new(1, -24, 0, 30)
+inputBox.Position = UDim2.new(0, 12, 0, 72)
+inputBox.BackgroundColor3 = Color3.fromRGB(26, 20, 38)
+inputBox.PlaceholderText = "พิมพ์ตัวเลข (1 - 9,000,000)..."
+inputBox.PlaceholderColor3 = Color3.fromRGB(130, 110, 160)
+inputBox.Text = "100"
+inputBox.TextColor3 = Color3.fromRGB(210, 160, 255)
+inputBox.TextSize = 13
+inputBox.Font = Enum.Font.GothamBold
+inputBox.ClearTextOnFocus = false
+inputBox.Parent = mainFrame
+
+local boxCorner = Instance.new("UICorner")
+boxCorner.CornerRadius = UDim.new(0, 6)
+boxCorner.Parent = inputBox
+
+local boxStroke = Instance.new("UIStroke")
+boxStroke.Color = Color3.fromRGB(95, 40, 165)
+boxStroke.Thickness = 1
+boxStroke.Parent = inputBox
+
+-- ============================================================================
+-- 3. แถบเลื่อนปรับค่า (Slider)
+-- ============================================================================
+local sliderBg = Instance.new("Frame")
+sliderBg.Size = UDim2.new(1, -24, 0, 8)
+sliderBg.Position = UDim2.new(0, 12, 0, 116)
+sliderBg.BackgroundColor3 = Color3.fromRGB(35, 25, 50)
+sliderBg.BorderSizePixel = 0
+sliderBg.Parent = mainFrame
+
+local sliderCorner = Instance.new("UICorner")
+sliderCorner.CornerRadius = UDim.new(1, 0)
+sliderCorner.Parent = sliderBg
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(0, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(165, 70, 255)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBg
+
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(1, 0)
+fillCorner.Parent = sliderFill
+
+local sliderKnob = Instance.new("Frame")
+sliderKnob.Size = UDim2.new(0, 16, 0, 16)
+sliderKnob.AnchorPoint = Vector2.new(0.5, 0.5)
+sliderKnob.Position = UDim2.new(0, 0, 0.5, 0)
+sliderKnob.BackgroundColor3 = Color3.fromRGB(235, 200, 255)
+sliderKnob.BorderSizePixel = 0
+sliderKnob.Parent = sliderBg
+
+local knobCorner = Instance.new("UICorner")
+knobCorner.CornerRadius = UDim.new(1, 0)
+knobCorner.Parent = sliderKnob
+
+-- ============================================================================
+-- 4. ปุ่มยืนยัน และ ปุ่มลัด MAX 9M
+-- ============================================================================
+local applyBtn = Instance.new("TextButton")
+applyBtn.Size = UDim2.new(0.62, -16, 0, 32)
+applyBtn.Position = UDim2.new(0, 12, 0, 140)
+applyBtn.BackgroundColor3 = Color3.fromRGB(125, 45, 220)
+applyBtn.Text = "ใช้งานค่านี้"
+applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+applyBtn.TextSize = 13
+applyBtn.Font = Enum.Font.GothamBold
+applyBtn.Parent = mainFrame
+
+local applyCorner = Instance.new("UICorner")
+applyCorner.CornerRadius = UDim.new(0, 8)
+applyCorner.Parent = applyBtn
+
+local maxBtn = Instance.new("TextButton")
+maxBtn.Size = UDim2.new(0.38, -12, 0, 32)
+maxBtn.Position = UDim2.new(0.62, 4, 0, 140)
+maxBtn.BackgroundColor3 = Color3.fromRGB(45, 25, 75)
+maxBtn.Text = "MAX 9M"
+maxBtn.TextColor3 = Color3.fromRGB(215, 165, 255)
+maxBtn.TextSize = 12
+maxBtn.Font = Enum.Font.GothamBold
+maxBtn.Parent = mainFrame
+
+local maxCorner = Instance.new("UICorner")
+maxCorner.CornerRadius = UDim.new(0, 8)
+maxCorner.Parent = maxBtn
+
+-- ============================================================================
+-- ระบบอัปเดตค่าและเชื่อมต่อการทำงาน
+-- ============================================================================
+local function setDamageValue(newValue)
+	newValue = math.clamp(math.floor(newValue), 1, MAX_DAMAGE)
+	currentDamage = newValue
+	
+	local ratio = newValue / MAX_DAMAGE
+	sliderFill.Size = UDim2.new(ratio, 0, 1, 0)
+	sliderKnob.Position = UDim2.new(ratio, 0, 0.5, 0)
+	
+	valueDisplay.Text = "พลังโจมตี: " .. formatNumber(newValue)
+	inputBox.Text = tostring(newValue)
+end
+
+-- ระบบลากแถบเลื่อน (Slider)
+local sliding = false
+local function updateSliderFromInput(input)
+	local posX = math.clamp(input.Position.X - sliderBg.AbsolutePosition.X, 0, sliderBg.AbsoluteSize.X)
+	local ratio = posX / sliderBg.AbsoluteSize.X
+	local calculatedValue = math.max(1, math.floor(ratio * MAX_DAMAGE))
+	setDamageValue(calculatedValue)
+end
+
+sliderBg.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliding = true
+		updateSliderFromInput(input)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliding = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		updateSliderFromInput(input)
+	end
+end)
+
+-- เมื่อพิมพ์ตัวเลขในกล่องข้อความเสร็จ
+inputBox.FocusLost:Connect(function()
+	local num = tonumber(inputBox.Text)
+	if num then
+		setDamageValue(num)
+	else
+		inputBox.Text = tostring(currentDamage)
+	end
+end)
+
+-- ปุ่ม MAX 9M
+maxBtn.MouseButton1Click:Connect(function()
+	setDamageValue(MAX_DAMAGE)
+end)
+
+-- ปุ่มกดยืนยันส่งค่าดาเมจ
+applyBtn.MouseButton1Click:Connect(function()
+	-- 1. บันทึกค่าไว้ใน Attribute ของผู้เล่น (สคริปต์อาวุธ/สกิลดึงไปใช้ได้ทันที)
+	player:SetAttribute("CustomDamage", currentDamage)
+	
+	-- 2. ค้นหาและปรับค่า Damage ใน Tool ที่ผู้เล่นถืออยู่หรืออยู่ในกระเป๋า (หากมี Value ชื่อ Damage)
+	local function updateTools(container)
+		if not container then return end
+		for _, item in ipairs(container:GetChildren()) do
+			if item:IsA("Tool") then
+				item:SetAttribute("Damage", currentDamage)
+				local dmgVal = item:FindFirstChild("Damage") or item:FindFirstChild("Dmg") or item:FindFirstChild("Power")
+				if dmgVal and (dmgVal:IsA("NumberValue") or dmgVal:IsA("IntValue")) then
+					dmgVal.Value = currentDamage
+				end
+			end
+		end
+	end
+	updateTools(player.Character)
+	updateTools(player:FindFirstChild("Backpack"))
+
+	-- 3. ส่งค่าไปยัง Server ผ่าน RemoteEvent (หากสร้างไว้)
+	if damageEvent then
+		damageEvent:FireServer(currentDamage)
+	end
+	
+	-- เอฟเฟกต์แจ้งเตือนบนปุ่ม
+	applyBtn.Text = "✓ บันทึกแล้ว!"
+	applyBtn.BackgroundColor3 = Color3.fromRGB(90, 180, 110)
+	task.wait(1)
+	applyBtn.Text = "ใช้งานค่านี้"
+	applyBtn.BackgroundColor3 = Color3.fromRGB(125, 45, 220)
+end)
+
+-- ระบบเปิด/ปิดหน้าต่างเมื่อกดปุ่มวงกลมลายน้ำ (แยกแยะระหว่างการกดกับการลาก)
+local clickStartPos
+watermarkBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		clickStartPos = input.Position
+	end
+end)
+
+watermarkBtn.InputEnded:Connect(function(input)
+	if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and clickStartPos then
+		local dist = (input.Position - clickStartPos).Magnitude
+		if dist < 5 then -- ถ้าขยับเมาส์น้อยกว่า 5 พิกเซล ถือว่าเป็นการคลิก
+			mainFrame.Visible = not mainFrame.Visible
+		end
+	end
+end)
+
+-- เริ่มต้นที่ค่า 100
+setDamageValue(100)
+
+-- ============================================================================
+-- [ส่วนเสริมสำหรับ ServerScriptService] 
+-- คัดลอกโค้ดด้านล่างนี้ไปใส่ใน Script (ฝั่ง Server) หากคุณเป็นผู้พัฒนาแมพเอง:
+-- ============================================================================
+--[[
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local damageEvent = Instance.new("RemoteEvent")
+damageEvent.Name = "UpdatePlayerDamageEvent"
+damageEvent.Parent = ReplicatedStorage
+
+damageEvent.OnServerEvent:Connect(function(player, requestedDamage)
+	if typeof(requestedDamage) ~= "number" then return end
+	local safeDamage = math.clamp(math.floor(requestedDamage), 1, 9000000)
+	player:SetAttribute("CustomDamage", safeDamage)
+end)
+]]
