@@ -1,0 +1,1144 @@
+--[[
+    Moko Purple Hub v2 - Universal All Maps GUI (Lua / Roblox LocalScript)
+    Theme: Dark & Purple
+    Features:
+      - Dual Language: Thai (TH) / English (EN)
+      - Draggable Watermark Circle (top-left offset)
+      - Auto Farm, Kill & Damage Controls
+      - UGC Finder & UGC Event Helper (All Maps)
+      - Detailed ESP (Item / NPC / Entity / Player) with 3D Box, Top Distance (m), and Tracer Line
+      - Performance Scale up to 9,000,000
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local existingGui = PlayerGui:FindFirstChild("MokoPurpleHubGui")
+if existingGui then
+    existingGui:Destroy()
+end
+
+-- ==========================================
+-- การตั้งค่าหลัก (Configuration)
+-- ==========================================
+local Config = {
+    Lang = "TH", -- "TH" หรือ "EN"
+    WalkSpeed = 16,
+    JumpPower = 50,
+    NoClip = false,
+    InfiniteJump = false,
+    FullBright = false,
+
+    -- Auto Farm / Kill / Damage
+    AutoFarm = false,
+    AutoKill = false,
+    DamageBoostMode = false,
+    AttackReach = 25,
+    HitInterval = 0.12,
+
+    -- UGC Finder & UGC Event
+    AutoUgcEvent = false,
+    LastUgcSummary = "",
+
+    -- ESP Settings (Item / NPC / Entity / Player)
+    EspMaster = false,
+    EspSubEnabled = false, -- เปิดใช้งานชั้นตัวแสดงผลด้านล่างคู่กัน
+    EspBox = true,
+    EspTracer = true,
+    EspMetersTop = true,
+    EspTargets = {
+        Item = true,
+        NPC = true,
+        Entity = true,
+        Player = true
+    },
+
+    -- Settings & Performance (Max 9,000,000)
+    MaxPerfScale = 9000000
+}
+
+-- 1 Stud ≈ 0.28 Meters (ค่าอ้างอิงมาตรฐานระยะใน Roblox)
+local STUDS_TO_METERS = 0.28
+
+-- ==========================================
+-- พจนานุกรม 2 ภาษา (Thai / English)
+-- ==========================================
+local Locale = {
+    TH = {
+        HubTitle = "MOKO PURPLE HUB  |  ทุกแมพ (ALL MAPS)",
+        Watermark = "MOKO\nPURPLE",
+        TabChar = "ความเร็ว & ตัวละคร",
+        TabCombat = "ฟาร์ม / ฆ่า / ดาเมจ",
+        TabUgc = "ตามหา UGC & Event",
+        TabEsp = "ระบบ ESP",
+        TabSettings = "ตั้งค่า (9M)",
+
+        SecChar = "การเคลื่อนไหวและตัวละคร",
+        WalkSpeed = "ความเร็วเดิน (WalkSpeed)",
+        JumpPower = "แรงกระโดด (JumpPower)",
+        NoClip = "เดินทะลุกำแพง (NoClip)",
+        InfJump = "กระโดดไม่จำกัด (Infinite Jump)",
+        FullBright = "เปิดไฟสว่างทั้งแมพ (FullBright)",
+        ResetChar = "รีเซ็ตค่าตัวละครกลับเป็นปกติ",
+
+        SecCombat = "ออโต้ฟาร์ม ระบบฆ่า และดาเมจ",
+        AutoFarm = "เปิดระบบ Auto Farm",
+        AutoKill = "เปิดระบบ Kill / โจมตีเป้าหมาย",
+        DamageBoost = "โหมดเร่งรอบโจมตี / ดาเมจ (Client)",
+        AttackReach = "ระยะเข้าถึงเป้าหมาย (Studs)",
+        ScanTargets = "สแกนหาเป้าหมายฟาร์ม / ศัตรู",
+
+        SecUgc = "ตามหา UGC และทำ Event ของ UGC",
+        AutoUgcEvent = "เปิดช่วยทำ UGC Event อัตโนมัติ",
+        ScanUgc = "สแกนหา UGC / จุดรับของรางวัลในแมพ",
+        UgcIdle = "สถานะ UGC: กดสแกนเพื่อค้นหาไอเทม/พรอมต์/Event ที่เกี่ยวกับ UGC ในแมพนี้",
+
+        SecEsp = "ระบบ ESP (กล่อง 3D + ระยะเมตร + เส้นโยง)",
+        EspMaster = "เปิด ESP ทั้งหมด (เปิดระบบด้านล่างอัตโนมัติ)",
+        EspSub = "เปิดใช้งานชั้นวาดกล่อง/เส้น/ระยะด้านล่าง",
+        EspItem = "ESP: ไอเทม (Item)",
+        EspNpc = "ESP: NPC",
+        EspEntity = "ESP: เอนทิตี / มอนสเตอร์ (Entity)",
+        EspPlayer = "ESP: ผู้เล่น (Player)",
+        EspBox = "กล่องสี่เหลี่ยมรอบเป้าหมาย (3D Box)",
+        EspTracer = "เส้นโยงไปที่กล่องสี่เหลี่ยม (Tracer)",
+        EspMeters = "ระยะทางนับเป็นเมตรด้านบนกล่อง (m)",
+
+        SecSettings = "ภาษาและประสิทธิภาพสูงสุด 9,000,000",
+        LangSwitch = "เปลี่ยนภาษา: ไทย (TH) / English (EN)",
+        PerfScale = "สเกลประสิทธิภาพ (สูงสุด 9 ล้าน)",
+        ResetPos = "รีเซ็ตตำแหน่งวงกลมลายน้ำ (ซ้ายบนเล็กน้อย)",
+        DestroyGui = "ล้างระบบและปิด GUI"
+    },
+    EN = {
+        HubTitle = "MOKO PURPLE HUB  |  ALL MAPS",
+        Watermark = "MOKO\nPURPLE",
+        TabChar = "Speed & Character",
+        TabCombat = "Farm / Kill / DMG",
+        TabUgc = "UGC & Event",
+        TabEsp = "ESP System",
+        TabSettings = "Settings (9M)",
+
+        SecChar = "Movement & Character",
+        WalkSpeed = "WalkSpeed",
+        JumpPower = "JumpPower",
+        NoClip = "NoClip",
+        InfJump = "Infinite Jump",
+        FullBright = "FullBright",
+        ResetChar = "Reset Character Defaults",
+
+        SecCombat = "Auto Farm, Kill & Damage",
+        AutoFarm = "Enable Auto Farm",
+        AutoKill = "Enable Kill / Target Attack",
+        DamageBoost = "Client Attack Cadence / Damage Mode",
+        AttackReach = "Target Reach (Studs)",
+        ScanTargets = "Scan Farm / Enemy Targets",
+
+        SecUgc = "UGC Finder & UGC Event",
+        AutoUgcEvent = "Auto Assist UGC Events",
+        ScanUgc = "Scan UGC / Event Prompts in Map",
+        UgcIdle = "UGC Status: Scan to find UGC items, prompts, or events in this map.",
+
+        SecEsp = "ESP System (3D Box + Top Meters + Tracer)",
+        EspMaster = "Enable All ESP (Auto-Enables Bottom Layer)",
+        EspSub = "Enable Bottom Box / Tracer / Meter Renderer",
+        EspItem = "ESP: Item",
+        EspNpc = "ESP: NPC",
+        EspEntity = "ESP: Entity",
+        EspPlayer = "ESP: Player",
+        EspBox = "3D Box Around Target",
+        EspTracer = "Tracer Line to Box",
+        EspMeters = "Top Distance in Meters (m)",
+
+        SecSettings = "Language & Performance (Up to 9,000,000)",
+        LangSwitch = "Language: ไทย (TH) / English (EN)",
+        PerfScale = "Performance Scale (Max 9M)",
+        ResetPos = "Reset Watermark Position (Top-Left Offset)",
+        DestroyGui = "Cleanup & Close GUI"
+    }
+}
+
+local function T(key)
+    local dict = Locale[Config.Lang] or Locale.TH
+    return dict[key] or key
+end
+
+-- ==========================================
+-- ชุดสีธีมดำ-ม่วง (Dark & Purple Theme)
+-- ==========================================
+local Theme = {
+    BgDark = Color3.fromRGB(13, 10, 22),
+    BgCard = Color3.fromRGB(23, 17, 38),
+    PurplePrimary = Color3.fromRGB(138, 43, 226),
+    PurpleBright = Color3.fromRGB(182, 95, 255),
+    PurpleDark = Color3.fromRGB(58, 22, 106),
+    TextMain = Color3.fromRGB(246, 242, 255),
+    TextMuted = Color3.fromRGB(170, 156, 198),
+    BorderPurple = Color3.fromRGB(122, 58, 205),
+    EspBoxColor = Color3.fromRGB(185, 95, 255),
+    EspLineColor = Color3.fromRGB(155, 70, 255)
+}
+
+local Connections = {}
+local RefreshCallbacks = {}
+
+local function trackConn(conn)
+    table.insert(Connections, conn)
+    return conn
+end
+
+local function clearConnections()
+    for _, conn in ipairs(Connections) do
+        if conn and conn.Disconnect then
+            conn:Disconnect()
+        end
+    end
+    table.clear(Connections)
+end
+
+local function addCorner(inst, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 10)
+    c.Parent = inst
+    return c
+end
+
+local function addStroke(inst, color, thick, transp)
+    local s = Instance.new("UIStroke")
+    s.Color = color or Theme.BorderPurple
+    s.Thickness = thick or 1.2
+    s.Transparency = transp or 0.25
+    s.Parent = inst
+    return s
+end
+
+local function addGradient(inst, c1, c2, rot)
+    local g = Instance.new("UIGradient")
+    g.Color = ColorSequence.new(c1, c2)
+    g.Rotation = rot or 45
+    g.Parent = inst
+    return g
+end
+
+-- ==========================================
+-- สร้าง GUI หลัก & วงกลมลายน้ำลากได้
+-- ==========================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MokoPurpleHubGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 999
+ScreenGui.Parent = PlayerGui
+
+local function makeDraggable(handle, target, onTap)
+    local dragging = false
+    local moved = false
+    local activeInput = nil
+    local dragStart = Vector3.zero
+    local startPos = target.Position
+
+    trackConn(handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            moved = false
+            activeInput = input
+            dragStart = input.Position
+            startPos = target.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if activeInput == input then
+                        dragging = false
+                        activeInput = nil
+                        if not moved and onTap then
+                            onTap()
+                        end
+                    end
+                end
+            end)
+        end
+    end))
+
+    trackConn(UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == activeInput then
+            local delta = input.Position - dragStart
+            if delta.Magnitude > 6 then
+                moved = true
+            end
+            local vp = Workspace.CurrentCamera.ViewportSize
+            local maxX = math.max(6, vp.X - target.AbsoluteSize.X - 6)
+            local maxY = math.max(6, vp.Y - target.AbsoluteSize.Y - 6)
+            local nx = math.clamp(startPos.X.Offset + delta.X, 6, maxX)
+            local ny = math.clamp(startPos.Y.Offset + delta.Y, 6, maxY)
+            target.Position = UDim2.new(0, nx, 0, ny)
+        end
+    end))
+end
+
+-- วงกลมลายน้ำด้านซ้ายบนเล็กน้อย (X = 68, Y = 18)
+local WatermarkCircle = Instance.new("Frame")
+WatermarkCircle.Name = "DraggableWatermarkCircle"
+WatermarkCircle.Size = UDim2.new(0, 62, 0, 62)
+WatermarkCircle.Position = UDim2.new(0, 68, 0, 18)
+WatermarkCircle.BackgroundColor3 = Theme.BgDark
+WatermarkCircle.BackgroundTransparency = 0.06
+WatermarkCircle.Active = true
+WatermarkCircle.Parent = ScreenGui
+addCorner(WatermarkCircle, 999)
+local wmStroke = addStroke(WatermarkCircle, Theme.PurpleBright, 2, 0.1)
+addGradient(WatermarkCircle, Theme.BgCard, Theme.PurpleDark, 135)
+
+local InnerCircle = Instance.new("Frame")
+InnerCircle.Size = UDim2.new(1, -10, 1, -10)
+InnerCircle.Position = UDim2.new(0, 5, 0, 5)
+InnerCircle.BackgroundTransparency = 1
+InnerCircle.Parent = WatermarkCircle
+addCorner(InnerCircle, 999)
+addStroke(InnerCircle, Theme.PurplePrimary, 1, 0.5)
+
+local WatermarkLabel = Instance.new("TextLabel")
+WatermarkLabel.Size = UDim2.new(1, -6, 1, 0)
+WatermarkLabel.Position = UDim2.new(0, 3, 0, 0)
+WatermarkLabel.BackgroundTransparency = 1
+WatermarkLabel.Text = T("Watermark")
+WatermarkLabel.TextColor3 = Theme.TextMain
+WatermarkLabel.Font = Enum.Font.GothamBold
+WatermarkLabel.TextSize = 10
+WatermarkLabel.TextWrapped = true
+WatermarkLabel.Parent = WatermarkCircle
+
+-- หน้าต่างหลัก GUI
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainHubWindow"
+MainFrame.Size = UDim2.new(0, 460, 0, 320)
+MainFrame.Position = UDim2.new(0, 68, 0, 90)
+MainFrame.BackgroundColor3 = Theme.BgDark
+MainFrame.Visible = true
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
+addCorner(MainFrame, 14)
+addStroke(MainFrame, Theme.BorderPurple, 1.5, 0.15)
+addGradient(MainFrame, Theme.BgDark, Color3.fromRGB(24, 14, 40), 120)
+
+local UIScale = Instance.new("UIScale")
+UIScale.Parent = MainFrame
+
+local function updateGuiScale()
+    local vp = Workspace.CurrentCamera.ViewportSize
+    local sx = (vp.X - 20) / 460
+    local sy = (vp.Y - 102) / 320
+    UIScale.Scale = math.clamp(math.min(sx, sy, 1), 0.62, 1)
+end
+updateGuiScale()
+trackConn(Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateGuiScale))
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 40)
+Header.BackgroundColor3 = Theme.BgCard
+Header.Parent = MainFrame
+addCorner(Header, 14)
+
+local HubTitleLabel = Instance.new("TextLabel")
+HubTitleLabel.Size = UDim2.new(1, -86, 1, 0)
+HubTitleLabel.Position = UDim2.new(0, 12, 0, 0)
+HubTitleLabel.BackgroundTransparency = 1
+HubTitleLabel.Text = T("HubTitle")
+HubTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+HubTitleLabel.TextColor3 = Theme.TextMain
+HubTitleLabel.Font = Enum.Font.GothamBold
+HubTitleLabel.TextSize = 12
+HubTitleLabel.Parent = Header
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 26, 0, 26)
+MinBtn.Position = UDim2.new(1, -64, 0.5, -13)
+MinBtn.BackgroundColor3 = Theme.PurpleDark
+MinBtn.Text = "-"
+MinBtn.TextColor3 = Theme.TextMain
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 15
+MinBtn.Parent = Header
+addCorner(MinBtn, 8)
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 26, 0, 26)
+CloseBtn.Position = UDim2.new(1, -32, 0.5, -13)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(78, 20, 98)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Theme.TextMain
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 12
+CloseBtn.Parent = Header
+addCorner(CloseBtn, 8)
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 132, 1, -50)
+Sidebar.Position = UDim2.new(0, 8, 0, 45)
+Sidebar.BackgroundColor3 = Theme.BgCard
+Sidebar.Parent = MainFrame
+addCorner(Sidebar, 10)
+addStroke(Sidebar, Theme.PurpleDark, 1, 0.35)
+
+local sideLayout = Instance.new("UIListLayout")
+sideLayout.Padding = UDim.new(0, 5)
+sideLayout.Parent = Sidebar
+
+local sidePad = Instance.new("UIPadding")
+sidePad.PaddingTop = UDim.new(0, 7)
+sidePad.PaddingLeft = UDim.new(0, 6)
+sidePad.PaddingRight = UDim.new(0, 6)
+sidePad.Parent = Sidebar
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, -152, 1, -50)
+ContentFrame.Position = UDim2.new(0, 146, 0, 45)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+local Pages = {}
+local TabBtns = {}
+
+local function createPage(id)
+    local sf = Instance.new("ScrollingFrame")
+    sf.Name = id .. "Page"
+    sf.Size = UDim2.new(1, 0, 1, 0)
+    sf.BackgroundTransparency = 1
+    sf.ScrollBarThickness = 4
+    sf.ScrollBarImageColor3 = Theme.PurpleBright
+    sf.CanvasSize = UDim2.new(0, 0, 0, 0)
+    sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    sf.Visible = false
+    sf.Parent = ContentFrame
+
+    local ll = Instance.new("UIListLayout")
+    ll.Padding = UDim.new(0, 7)
+    ll.Parent = sf
+
+    local pad = Instance.new("UIPadding")
+    pad.PaddingRight = UDim.new(0, 6)
+    pad.PaddingBottom = UDim.new(0, 8)
+    pad.Parent = sf
+
+    Pages[id] = sf
+    return sf
+end
+
+local function selectTab(id)
+    for k, p in pairs(Pages) do
+        p.Visible = (k == id)
+    end
+    for k, b in pairs(TabBtns) do
+        local active = (k == id)
+        b.BackgroundColor3 = active and Theme.PurplePrimary or Theme.BgDark
+        b.TextColor3 = active and Theme.TextMain or Theme.TextMuted
+    end
+end
+
+local function addTab(id, titleKey)
+    createPage(id)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 34)
+    btn.BackgroundColor3 = Theme.BgDark
+    btn.Text = T(titleKey)
+    btn.TextColor3 = Theme.TextMuted
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 11
+    btn.Parent = Sidebar
+    addCorner(btn, 8)
+
+    btn.MouseButton1Click:Connect(function()
+        selectTab(id)
+    end)
+
+    table.insert(RefreshCallbacks, function()
+        btn.Text = T(titleKey)
+    end)
+
+    TabBtns[id] = btn
+end
+
+-- ==========================================
+-- ตัวช่วยสร้างวิดเจ็ต UI รองรับการอัปเดต 2 ภาษา
+-- ==========================================
+local function makeSection(parent, titleKey)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 22)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = T(titleKey)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextColor3 = Theme.PurpleBright
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 12
+    lbl.Parent = parent
+
+    table.insert(RefreshCallbacks, function()
+        lbl.Text = T(titleKey)
+    end)
+end
+
+local function makeToggle(parent, labelKey, getState, setState)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 36)
+    card.BackgroundColor3 = Theme.BgCard
+    card.Parent = parent
+    addCorner(card, 8)
+    addStroke(card, Theme.PurpleDark, 1, 0.4)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -64, 1, 0)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = T(labelKey)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextColor3 = Theme.TextMain
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 11
+    lbl.TextTruncate = Enum.TextTruncate.AtEnd
+    lbl.Parent = card
+
+    local pill = Instance.new("TextButton")
+    pill.Size = UDim2.new(0, 46, 0, 22)
+    pill.Position = UDim2.new(1, -54, 0.5, -11)
+    pill.Font = Enum.Font.GothamBold
+    pill.TextSize = 10
+    pill.TextColor3 = Theme.TextMain
+    pill.Parent = card
+    addCorner(pill, 999)
+
+    local function syncVisual()
+        local active = getState()
+        pill.Text = active and "ON" or "OFF"
+        pill.BackgroundColor3 = active and Theme.PurplePrimary or Color3.fromRGB(46, 36, 68)
+        lbl.Text = T(labelKey)
+    end
+    syncVisual()
+
+    pill.MouseButton1Click:Connect(function()
+        setState(not getState())
+        for _, fn in ipairs(RefreshCallbacks) do
+            fn()
+        end
+    end)
+
+    table.insert(RefreshCallbacks, syncVisual)
+    return syncVisual
+end
+
+local function makeSlider(parent, labelKey, minV, maxV, step, getVal, setVal)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 46)
+    card.BackgroundColor3 = Theme.BgCard
+    card.Parent = parent
+    addCorner(card, 8)
+    addStroke(card, Theme.PurpleDark, 1, 0.4)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -16, 0, 18)
+    lbl.Position = UDim2.new(0, 10, 0, 4)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextColor3 = Theme.TextMain
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 11
+    lbl.Parent = card
+
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, -20, 0, 8)
+    bar.Position = UDim2.new(0, 10, 0, 29)
+    bar.BackgroundColor3 = Color3.fromRGB(40, 28, 62)
+    bar.Parent = card
+    addCorner(bar, 999)
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(0, 0, 1, 0)
+    fill.BackgroundColor3 = Theme.PurpleBright
+    fill.Parent = bar
+    addCorner(fill, 999)
+
+    local function syncSlider()
+        local v = getVal()
+        lbl.Text = string.format("%s: %s", T(labelKey), tostring(v))
+        local ratio = math.clamp((v - minV) / math.max(maxV - minV, 1e-6), 0, 1)
+        fill.Size = UDim2.new(ratio, 0, 1, 0)
+    end
+    syncSlider()
+
+    local dragging = false
+    local function applyX(xPos)
+        local rel = math.clamp((xPos - bar.AbsolutePosition.X) / math.max(bar.AbsoluteSize.X, 1), 0, 1)
+        local raw = minV + (maxV - minV) * rel
+        local snapped = math.floor((raw / step) + 0.5) * step
+        snapped = math.clamp(snapped, minV, maxV)
+        setVal(snapped)
+        syncSlider()
+    end
+
+    trackConn(bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            applyX(input.Position.X)
+        end
+    end))
+
+    trackConn(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            applyX(input.Position.X)
+        end
+    end))
+
+    trackConn(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end))
+
+    table.insert(RefreshCallbacks, syncSlider)
+end
+
+local function makeButton(parent, labelKey, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 34)
+    btn.BackgroundColor3 = Theme.PurpleDark
+    btn.Text = T(labelKey)
+    btn.TextColor3 = Theme.TextMain
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 11
+    btn.Parent = parent
+    addCorner(btn, 8)
+    addStroke(btn, Theme.BorderPurple, 1, 0.35)
+
+    btn.MouseButton1Click:Connect(function()
+        callback(btn)
+    end)
+
+    table.insert(RefreshCallbacks, function()
+        btn.Text = T(labelKey)
+    end)
+    return btn
+end
+
+-- ==========================================
+-- สร้างแท็บและหน้าต่างๆ
+-- ==========================================
+addTab("Character", "TabChar")
+addTab("Combat", "TabCombat")
+addTab("UGC", "TabUgc")
+addTab("ESP", "TabEsp")
+addTab("Settings", "TabSettings")
+
+-- --- 1. Speed & Character ---
+local pChar = Pages["Character"]
+makeSection(pChar, "SecChar")
+makeSlider(pChar, "WalkSpeed", 16, 250, 1, function() return Config.WalkSpeed end, function(v) Config.WalkSpeed = v end)
+makeSlider(pChar, "JumpPower", 50, 250, 1, function() return Config.JumpPower end, function(v) Config.JumpPower = v end)
+makeToggle(pChar, "NoClip", function() return Config.NoClip end, function(s) Config.NoClip = s end)
+makeToggle(pChar, "InfJump", function() return Config.InfiniteJump end, function(s) Config.InfiniteJump = s end)
+makeToggle(pChar, "FullBright", function() return Config.FullBright end, function(s)
+    Config.FullBright = s
+    Lighting.Brightness = s and 2.5 or 1
+    Lighting.GlobalShadows = not s
+end)
+makeButton(pChar, "ResetChar", function()
+    Config.WalkSpeed = 16
+    Config.JumpPower = 50
+    Config.NoClip = false
+    Config.InfiniteJump = false
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = 16
+        hum.JumpPower = 50
+    end
+    for _, fn in ipairs(RefreshCallbacks) do fn() end
+end)
+
+-- --- 2. Auto Farm / Kill / Damage ---
+local pCombat = Pages["Combat"]
+makeSection(pCombat, "SecCombat")
+
+local combatStatus = Instance.new("TextLabel")
+combatStatus.Size = UDim2.new(1, 0, 0, 42)
+combatStatus.BackgroundColor3 = Theme.BgCard
+combatStatus.Text = "Combat / Farm Ready"
+combatStatus.TextColor3 = Theme.TextMuted
+combatStatus.TextWrapped = true
+combatStatus.Font = Enum.Font.Gotham
+combatStatus.TextSize = 11
+combatStatus.Parent = pCombat
+addCorner(combatStatus, 8)
+
+makeToggle(pCombat, "AutoFarm", function() return Config.AutoFarm end, function(s) Config.AutoFarm = s end)
+makeToggle(pCombat, "AutoKill", function() return Config.AutoKill end, function(s) Config.AutoKill = s end)
+makeToggle(pCombat, "DamageBoost", function() return Config.DamageBoostMode end, function(s)
+    Config.DamageBoostMode = s
+    Config.HitInterval = s and 0.04 or 0.14
+end)
+makeSlider(pCombat, "AttackReach", 10, 150, 5, function() return Config.AttackReach end, function(v) Config.AttackReach = v end)
+
+local function findNearestCombatTarget()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local bestPart, bestDist = nil, math.huge
+    for _, model in ipairs(Workspace:GetDescendants()) do
+        if model:IsA("Model") and model ~= char then
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+            if hum and hrp and hum.Health > 0 and not Players:GetPlayerFromCharacter(model) then
+                local d = (hrp.Position - root.Position).Magnitude
+                if d < bestDist then
+                    bestDist = d
+                    bestPart = hrp
+                end
+            end
+        end
+    end
+    return bestPart, bestDist
+end
+
+makeButton(pCombat, "ScanTargets", function()
+    local target, dist = findNearestCombatTarget()
+    if target then
+        combatStatus.Text = string.format("Target: %s (%.1f studs / %.1f m)", target.Parent.Name, dist, dist * STUDS_TO_METERS)
+    else
+        combatStatus.Text = "No active NPC/Enemy model found nearby."
+    end
+end)
+
+-- --- 3. UGC Finder & UGC Event ---
+local pUgc = Pages["UGC"]
+makeSection(pUgc, "SecUgc")
+
+local ugcStatus = Instance.new("TextLabel")
+ugcStatus.Size = UDim2.new(1, 0, 0, 54)
+ugcStatus.BackgroundColor3 = Theme.BgCard
+ugcStatus.Text = T("UgcIdle")
+ugcStatus.TextColor3 = Theme.TextMuted
+ugcStatus.TextWrapped = true
+ugcStatus.Font = Enum.Font.Gotham
+ugcStatus.TextSize = 11
+ugcStatus.Parent = pUgc
+addCorner(ugcStatus, 8)
+
+local function scanUgcTargets()
+    local results = {}
+    local actionParts = {}
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        local nameLower = string.lower(obj.Name)
+        local isUgcWord = string.find(nameLower, "ugc") or string.find(nameLower, "limited") or string.find(nameLower, "claim") or string.find(nameLower, "free")
+
+        if obj:IsA("ProximityPrompt") then
+            local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
+            local actLower = string.lower(obj.ActionText or "")
+            local objTextLower = string.lower(obj.ObjectText or "")
+            if isUgcWord or string.find(parentName, "ugc") or string.find(parentName, "event") or string.find(actLower, "ugc") or string.find(objTextLower, "ugc") or string.find(actLower, "claim") then
+                local part = obj.Parent and (obj.Parent:IsA("BasePart") and obj.Parent or obj.Parent:FindFirstChildWhichIsA("BasePart"))
+                if part then
+                    table.insert(actionParts, {part = part, prompt = obj})
+                end
+                if #results < 5 then
+                    table.insert(results, obj.Parent and obj.Parent.Name or obj.Name)
+                end
+            end
+        elseif obj:IsA("BasePart") and isUgcWord then
+            table.insert(actionParts, {part = obj, prompt = obj:FindFirstChildOfClass("ProximityPrompt")})
+            if #results < 5 then
+                table.insert(results, obj.Name)
+            end
+        end
+    end
+
+    if #results > 0 then
+        Config.LastUgcSummary = "UGC / Event Found: " .. table.concat(results, ", ")
+    else
+        Config.LastUgcSummary = "No direct UGC/Event object names detected in Workspace."
+    end
+    ugcStatus.Text = Config.LastUgcSummary
+    return actionParts
+end
+
+makeToggle(pUgc, "AutoUgcEvent", function() return Config.AutoUgcEvent end, function(s) Config.AutoUgcEvent = s end)
+makeButton(pUgc, "ScanUgc", function()
+    scanUgcTargets()
+end)
+
+-- --- 4. ESP System (Item / NPC / Entity / Player) ---
+local pEsp = Pages["ESP"]
+makeSection(pEsp, "SecEsp")
+
+-- ตัวแปรเก็บออบเจกต์ ESP ของแต่ละเป้าหมาย
+local EspVisuals = {}
+
+local function clearAllEsp()
+    for targetObj, data in pairs(EspVisuals) do
+        if data.Box then pcall(function() data.Box:Destroy() end) end
+        if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+        if data.Beam then pcall(function() data.Beam:Destroy() end) end
+        if data.TargetAtt then pcall(function() data.TargetAtt:Destroy() end) end
+        EspVisuals[targetObj] = nil
+    end
+end
+
+local function ensurePlayerOriginAttachment()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local att = root:FindFirstChild("MokoEspOriginAtt")
+    if not att then
+        att = Instance.new("Attachment")
+        att.Name = "MokoEspOriginAtt"
+        att.Parent = root
+    end
+    return att
+end
+
+-- เมื่อเปิด EspMaster จะเปิดชั้นตัวแสดงผลด้านล่าง (EspSubEnabled) และเปิดกล่อง/ระยะ/เส้นให้อัตโนมัติ
+makeToggle(pEsp, "EspMaster", function() return Config.EspMaster end, function(s)
+    Config.EspMaster = s
+    if s then
+        Config.EspSubEnabled = true
+        Config.EspBox = true
+        Config.EspTracer = true
+        Config.EspMetersTop = true
+    else
+        clearAllEsp()
+    end
+end)
+
+-- ชั้นควบคุมด้านล่างที่ทำงานคู่กัน
+makeToggle(pEsp, "EspSub", function() return Config.EspSubEnabled end, function(s)
+    Config.EspSubEnabled = s
+    if not s then
+        clearAllEsp()
+    end
+end)
+
+makeToggle(pEsp, "EspItem", function() return Config.EspTargets.Item end, function(s) Config.EspTargets.Item = s end)
+makeToggle(pEsp, "EspNpc", function() return Config.EspTargets.NPC end, function(s) Config.EspTargets.NPC = s end)
+makeToggle(pEsp, "EspEntity", function() return Config.EspTargets.Entity end, function(s) Config.EspTargets.Entity = s end)
+makeToggle(pEsp, "EspPlayer", function() return Config.EspTargets.Player end, function(s) Config.EspTargets.Player = s end)
+makeToggle(pEsp, "EspBox", function() return Config.EspBox end, function(s) Config.EspBox = s end)
+makeToggle(pEsp, "EspTracer", function() return Config.EspTracer end, function(s) Config.EspTracer = s end)
+makeToggle(pEsp, "EspMeters", function() return Config.EspMetersTop end, function(s) Config.EspMetersTop = s end)
+
+local function collectEspCandidates()
+    local list = {}
+    local myChar = LocalPlayer.Character
+
+    -- Players
+    if Config.EspTargets.Player then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
+                    table.insert(list, {
+                        key = plr.Character,
+                        adornee = hrp,
+                        label = plr.DisplayName .. " [Player]",
+                        category = "Player"
+                    })
+                end
+            end
+        end
+    end
+
+    -- NPC / Entity / Item in Workspace
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj ~= myChar and not Players:GetPlayerFromCharacter(obj) then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            local hrp = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
+            if hum and hrp and hum.Health > 0 then
+                local nLower = string.lower(obj.Name)
+                local isNpc = string.find(nLower, "npc") or string.find(nLower, "shop") or string.find(nLower, "quest") or string.find(nLower, "vendor")
+                if isNpc and Config.EspTargets.NPC then
+                    table.insert(list, {
+                        key = obj,
+                        adornee = hrp,
+                        label = obj.Name .. " [NPC]",
+                        category = "NPC"
+                    })
+                elseif not isNpc and Config.EspTargets.Entity then
+                    table.insert(list, {
+                        key = obj,
+                        adornee = hrp,
+                        label = obj.Name .. " [Entity]",
+                        category = "Entity"
+                    })
+                end
+            end
+        elseif obj:IsA("Tool") and Config.EspTargets.Item then
+            local handle = obj:FindFirstChild("Handle")
+            if handle and handle:IsA("BasePart") then
+                table.insert(list, {
+                    key = obj,
+                    adornee = handle,
+                    label = obj.Name .. " [Item]",
+                    category = "Item"
+                })
+            end
+        end
+    end
+
+    return list
+end
+
+local function updateEspSystem()
+    if not (Config.EspMaster and Config.EspSubEnabled) then
+        return
+    end
+
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local originAtt = ensurePlayerOriginAttachment()
+    if not root or not originAtt then return end
+
+    local candidates = collectEspCandidates()
+    local activeKeys = {}
+
+    -- จำกัดจำนวน ESP ตาม MaxPerfScale (สูงสุด 9,000,000) โดยกันไม่ให้จอรกเกินไป
+    local maxRendered = math.clamp(math.floor(Config.MaxPerfScale / 100000), 15, 90)
+    local count = 0
+
+    for _, item in ipairs(candidates) do
+        if count >= maxRendered then break end
+        if item.adornee and item.adornee.Parent then
+            count += 1
+            activeKeys[item.key] = true
+
+            local entry = EspVisuals[item.key]
+            if not entry then
+                entry = {}
+                EspVisuals[item.key] = entry
+            end
+
+            local distStuds = (item.adornee.Position - root.Position).Magnitude
+            local distMeters = distStuds * STUDS_TO_METERS
+
+            -- กล่องสี่เหลี่ยมรอบเป้าหมาย (3D Box)
+            if Config.EspBox then
+                if not entry.Box then
+                    local box = Instance.new("SelectionBox")
+                    box.Name = "MokoEspBox"
+                    box.Color3 = Theme.EspBoxColor
+                    box.LineThickness = 0.04
+                    box.SurfaceTransparency = 0.85
+                    box.SurfaceColor3 = Theme.PurplePrimary
+                    box.Adornee = item.adornee
+                    box.Parent = ScreenGui
+                    entry.Box = box
+                else
+                    entry.Box.Adornee = item.adornee
+                end
+            elseif entry.Box then
+                entry.Box:Destroy()
+                entry.Box = nil
+            end
+
+            -- ระยะทางนับเป็นเมตรด้านบนกล่องสี่เหลี่ยม
+            if Config.EspMetersTop then
+                if not entry.Billboard then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = "MokoEspMeterTop"
+                    bb.Size = UDim2.new(0, 140, 0, 34)
+                    bb.StudsOffset = Vector3.new(0, 3.6, 0)
+                    bb.AlwaysOnTop = true
+                    bb.Adornee = item.adornee
+                    bb.Parent = ScreenGui
+
+                    local txt = Instance.new("TextLabel")
+                    txt.Name = "MeterLabel"
+                    txt.Size = UDim2.new(1, 0, 1, 0)
+                    txt.BackgroundTransparency = 1
+                    txt.TextColor3 = Theme.TextMain
+                    txt.TextStrokeTransparency = 0.2
+                    txt.TextStrokeColor3 = Theme.PurpleDark
+                    txt.Font = Enum.Font.GothamBold
+                    txt.TextSize = 12
+                    txt.Parent = bb
+
+                    entry.Billboard = bb
+                    entry.MeterLabel = txt
+                else
+                    entry.Billboard.Adornee = item.adornee
+                end
+                if entry.MeterLabel then
+                    entry.MeterLabel.Text = string.format("%.1f m\n%s", distMeters, item.label)
+                end
+            elseif entry.Billboard then
+                entry.Billboard:Destroy()
+                entry.Billboard = nil
+                entry.MeterLabel = nil
+            end
+
+            -- เส้นโยงจากตัวผู้เล่นไปยังกล่องสี่เหลี่ยม
+            if Config.EspTracer then
+                if not entry.TargetAtt then
+                    local tAtt = Instance.new("Attachment")
+                    tAtt.Name = "MokoEspTargetAtt"
+                    tAtt.Parent = item.adornee
+                    entry.TargetAtt = tAtt
+                end
+                if not entry.Beam then
+                    local beam = Instance.new("Beam")
+                    beam.Name = "MokoEspTracerLine"
+                    beam.Attachment0 = originAtt
+                    beam.Attachment1 = entry.TargetAtt
+                    beam.Color = ColorSequence.new(Theme.EspLineColor, Theme.PurpleBright)
+                    beam.Width0 = 0.06
+                    beam.Width1 = 0.06
+                    beam.FaceCamera = true
+                    beam.Parent = item.adornee
+                    entry.Beam = beam
+                else
+                    entry.Beam.Attachment0 = originAtt
+                    entry.Beam.Attachment1 = entry.TargetAtt
+                end
+            else
+                if entry.Beam then entry.Beam:Destroy() entry.Beam = nil end
+                if entry.TargetAtt then entry.TargetAtt:Destroy() entry.TargetAtt = nil end
+            end
+        end
+    end
+
+    for key, _ in pairs(EspVisuals) do
+        if not activeKeys[key] then
+            local data = EspVisuals[key]
+            if data.Box then pcall(function() data.Box:Destroy() end) end
+            if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+            if data.Beam then pcall(function() data.Beam:Destroy() end) end
+            if data.TargetAtt then pcall(function() data.TargetAtt:Destroy() end) end
+            EspVisuals[key] = nil
+        end
+    end
+end
+
+-- --- 5. Settings & Performance (Max 9,000,000) ---
+local pSet = Pages["Settings"]
+makeSection(pSet, "SecSettings")
+makeButton(pSet, "LangSwitch", function()
+    Config.Lang = (Config.Lang == "TH") and "EN" or "TH"
+    HubTitleLabel.Text = T("HubTitle")
+    WatermarkLabel.Text = T("Watermark")
+    if Config.LastUgcSummary == "" then
+        ugcStatus.Text = T("UgcIdle")
+    end
+    for _, fn in ipairs(RefreshCallbacks) do
+        fn()
+    end
+end)
+makeSlider(pSet, "PerfScale", 1000, 9000000, 100000, function() return Config.MaxPerfScale end, function(v) Config.MaxPerfScale = v end)
+makeButton(pSet, "ResetPos", function()
+    WatermarkCircle.Position = UDim2.new(0, 68, 0, 18)
+    MainFrame.Position = UDim2.new(0, 68, 0, 90)
+end)
+makeButton(pSet, "DestroyGui", function()
+    clearAllEsp()
+    clearConnections()
+    ScreenGui:Destroy()
+end)
+
+selectTab("Character")
+
+-- ==========================================
+-- ลูปการทำงานหลัก (Movement, Farm/Kill, UGC, ESP)
+-- ==========================================
+trackConn(UserInputService.JumpRequest:Connect(function()
+    if Config.InfiniteJump then
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end))
+
+local lastAttackTime = 0
+local lastUgcTick = 0
+local lastEspTick = 0
+
+trackConn(RunService.Stepped:Connect(function(now)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+
+    if hum then
+        if hum.WalkSpeed ~= Config.WalkSpeed then hum.WalkSpeed = Config.WalkSpeed end
+        if hum.JumpPower ~= Config.JumpPower then hum.JumpPower = Config.JumpPower end
+    end
+
+    if Config.NoClip and char then
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanCollide = false
+            end
+        end
+    end
+
+    -- ระบบฟาร์ม / ฆ่า / โจมตี
+    if (Config.AutoFarm or Config.AutoKill) and hum and root then
+        local targetPart, dist = findNearestCombatTarget()
+        if targetPart then
+            if dist > 6 then
+                hum:MoveTo(targetPart.Position)
+            end
+            if dist <= Config.AttackReach and (now - lastAttackTime) >= Config.HitInterval then
+                lastAttackTime = now
+                local tool = char:FindFirstChildOfClass("Tool")
+                if tool then
+                    pcall(function() tool:Activate() end)
+                end
+            end
+        end
+    end
+
+    -- ระบบช่วยทำ UGC Event ทุกแมพ
+    if Config.AutoUgcEvent and hum and root and (now - lastUgcTick) >= 1.2 then
+        lastUgcTick = now
+        local ugcList = scanUgcTargets()
+        if #ugcList > 0 then
+            local top = ugcList[1]
+            local d = (top.part.Position - root.Position).Magnitude
+            if d > 7 then
+                hum:MoveTo(top.part.Position)
+            elseif top.prompt and top.prompt.Enabled then
+                pcall(function()
+                    fireproximityprompt(top.prompt)
+                end)
+            end
+        end
+    end
+
+    -- อัปเดตระบบ ESP แบบกล่อง 3D + ระยะเมตรด้านบน + เส้นโยง
+    if Config.EspMaster and Config.EspSubEnabled and (now - lastEspTick) >= 0.06 then
+        lastEspTick = now
+        updateEspSystem()
+    end
+end))
+
+makeDraggable(WatermarkCircle, MainFrame, function()
+    MainFrame.Visible = not MainFrame.Visible
+    local tw = TweenService:Create(wmStroke, TweenInfo.new(0.22), {Thickness = 3.5})
+    tw:Play()
+    tw.Completed:Connect(function()
+        TweenService:Create(wmStroke, TweenInfo.new(0.22), {Thickness = 2}):Play()
+    end)
+end)
+
+MinBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    clearAllEsp()
+    clearConnections()
+    ScreenGui:Destroy()
+end)
