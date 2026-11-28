@@ -11,8 +11,8 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local TARGET_URL = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/Key-web-V3"
-local BASE_DURATION = 90.0 -- ประมาณ 1 นาที 30 วินาที เมื่อเครื่อง/เน็ตอยู่ในระดับปกติ
+local TARGET_URL = "https://raw.githubusercontent.com/XASZD-NET/XKIUOOLRETGARFRXEC/refs/heads/main/Zigds/7376367/____%26__/All/Lua%2Cluau/Key-web-v4"
+local BASE_DURATION = 40.0 -- ประมาณ 40 วินาที เมื่อเครื่อง/เน็ตอยู่ในระดับปกติ
 local BAR_BLOCKS = 60
 
 -- ล้าง UI เก่าหากรันซ้ำ
